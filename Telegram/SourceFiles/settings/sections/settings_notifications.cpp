@@ -7,6 +7,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_notifications.h"
 
+#include "svipe/svipe_message_types.h"
+#include "svipe/svipe_message_types_box.h"
+#include "ui/layers/generic_box.h"
+
 #include "settings/settings_common_session.h"
 
 #include "api/api_authorizations.h"
@@ -1183,6 +1187,20 @@ void BuildNotifyTypeSection(SectionBuilder &builder) {
 			ctx.container,
 			controller,
 			showOther);
+		// Svipe: message-type rules for every chat at once (Android: the "Message types in all
+		// chats" row under the categories).
+		AddButtonWithIcon(
+			ctx.container,
+			Svipe::TrValue(Svipe::Str::MessageTypesAll),
+			st::settingsButton,
+			{ &st::menuIconCustomize }
+		)->setClickedCallback([=] {
+			controller->show(Box(
+				Svipe::MessageTypesScopeBox,
+				&controller->session(),
+				Svipe::MessageTypes::kScopeAll,
+				Svipe::Str::MessageTypesAll));
+		});
 		if (ctx.highlights) {
 			ctx.highlights->push_back({
 				u"notifications/private"_q,

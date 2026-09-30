@@ -7,6 +7,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_notifications_type.h"
 
+#include "svipe/svipe_message_types.h"
+#include "svipe/svipe_message_types_box.h"
+#include "ui/layers/generic_box.h"
+
 #include "api/api_ringtones.h"
 #include "apiwrap.h"
 #include "base/unixtime.h"
@@ -689,6 +693,33 @@ void BuildNotificationsTypeContent(SectionBuilder &builder, Notify type) {
 	builder.addSkip();
 	builder.addDivider();
 	builder.addSkip();
+
+	// Svipe: the same message-type rules a single chat can carry, written for this whole
+	// category — its own row, out of the sound settings, as on Android.
+	builder.add([=](const WidgetContext &ctx) {
+		const auto controller = ctx.controller;
+		const auto scope = (type == Notify::User)
+			? Svipe::MessageTypes::kScopePrivate
+			: (type == Notify::Group)
+			? Svipe::MessageTypes::kScopeGroups
+			: Svipe::MessageTypes::kScopeChannels;
+		AddButtonWithIcon(
+			ctx.container,
+			Svipe::TrValue(Svipe::Str::MessageTypes),
+			st::settingsButton,
+			{ &st::menuIconCustomize }
+		)->setClickedCallback([=] {
+			controller->show(Box(
+				Svipe::MessageTypesScopeBox,
+				&controller->session(),
+				scope,
+				Svipe::Str::MessageTypes));
+		});
+		Ui::AddSkip(ctx.container);
+		Ui::AddDivider(ctx.container);
+		Ui::AddSkip(ctx.container);
+		return SectionBuilder::WidgetToAdd{};
+	});
 
 	builder.add([=](const WidgetContext &ctx) {
 		ExceptionsWidgets widgets;

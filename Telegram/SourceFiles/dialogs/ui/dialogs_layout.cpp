@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "dialogs/ui/dialogs_layout.h"
 
+#include "svipe/svipe_message_types.h"
+
 #include "base/options.h"
 #include "base/unixtime.h"
 #include "core/ui_integration.h"
@@ -1138,9 +1140,22 @@ void RowPainter::Paint(
 	const auto thread = row->thread();
 	const auto sublist = row->sublist();
 	const auto peer = history ? history->peer.get() : nullptr;
-	const auto badgesState = entry->chatListBadgesState();
+	auto badgesState = entry->chatListBadgesState();
 	entry->chatListPreloadData(); // Allow chat list message resolve.
 	const auto item = entry->chatListMessage();
+	// Svipe: paint the counter the way the notification actually went. A chat that rings, whose
+	// newest message is of a silenced kind, did not ring; a muted chat, whose newest message is of a
+	// kind let through, did. Only the colour changes — the counts stay Telegram's.
+	if (history && item && !item->out() && badgesState.unread) {
+		if (!badgesState.unreadMuted
+			&& Svipe::MessageTypes::IsMutedType(item)) {
+			badgesState.unreadMuted = true;
+		} else if (badgesState.unreadMuted
+			&& !history->folder()
+			&& Svipe::MessageTypes::IsNotifiedType(item)) {
+			badgesState.unreadMuted = false;
+		}
+	}
 	const auto cloudDraft = [&]() -> const Data::Draft*{
 		if (!thread) {
 			return nullptr;

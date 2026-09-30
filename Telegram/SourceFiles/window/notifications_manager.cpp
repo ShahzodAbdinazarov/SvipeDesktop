@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/notifications_manager.h"
 
+#include "svipe/svipe_message_types.h"
+
 #include "base/options.h"
 #include "base/platform/base_platform_info.h"
 #include "base/qt/qt_key_modifiers.h"
@@ -370,6 +372,14 @@ System::SkipState System::computeSkipState(
 	if (messageType && notifySettings->muteUnknown(thread)) {
 		return { SkipState::Unknown };
 	} else if (messageType && !notifySettings->isMuted(thread)) {
+		// Svipe: the chat rings, but this kind of message has been silenced — it still arrives and
+		// counts as unread, it just does not notify.
+		if (Svipe::MessageTypes::IsMutedType(item)) {
+			return { SkipState::Skip };
+		}
+		return withSilent(SkipState::DontSkip);
+	} else if (messageType && Svipe::MessageTypes::IsNotifiedType(item)) {
+		// Svipe: the chat is muted, and this kind of message is the exception to that.
 		return withSilent(SkipState::DontSkip);
 	} else if (!notifyBy) {
 		return withSilent(

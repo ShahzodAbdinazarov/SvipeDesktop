@@ -1957,6 +1957,22 @@ PRIVATE
     support/support_preload.h
     support/support_templates.cpp
     support/support_templates.h
+    svipe/svipe_api.cpp
+    svipe/svipe_api.h
+    svipe/svipe_auth.cpp
+    svipe/svipe_auth.h
+    svipe/svipe_config.cpp
+    svipe/svipe_config.h
+    svipe/svipe_message_types.cpp
+    svipe/svipe_message_types.h
+    svipe/svipe_message_types_box.cpp
+    svipe/svipe_message_types_box.h
+    svipe/svipe_settings_sync.cpp
+    svipe/svipe_settings_sync.h
+    svipe/svipe_storage.cpp
+    svipe/svipe_storage.h
+    svipe/svipe_strings.cpp
+    svipe/svipe_strings.h
     tde2e/tde2e_integration.cpp
     tde2e/tde2e_integration.h
     test/test_activation.cpp

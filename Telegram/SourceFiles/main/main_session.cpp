@@ -7,6 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "main/main_session.h"
 
+#include "base/call_delayed.h"
+#include "svipe/svipe_settings_sync.h"
+
 #include "apiwrap.h"
 #include "api/api_peer_colors.h"
 #include "api/api_updates.h"
@@ -272,6 +275,12 @@ Session::Session(
 	) | rpl::on_next([=] {
 		appConfigRefreshed();
 	}, _lifetime);
+
+	// Svipe: adopt the message-type notification rules the user set on another Svipe install.
+	// Delayed so it does not compete with the requests a session makes as it starts.
+	base::call_delayed(5000, this, [=] {
+		Svipe::SettingsSync::Pull(this);
+	});
 }
 
 void Session::appConfigRefreshed() {

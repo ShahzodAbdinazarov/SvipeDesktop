@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
+#include "svipe/svipe_message_types_box.h"
 #include "ui/boxes/choose_time.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/boxes/time_picker_box.h"
@@ -252,6 +253,7 @@ Descriptor ThreadDescriptor(not_null<Data::Thread*> thread) {
 		.updateSound = updateSound,
 		.updateMutePeriod = updateMutePeriod,
 		.volumeController = Data::ThreadRingtonesVolumeController(thread),
+		.svipePeer = thread->asHistory() ? thread->peer().get() : nullptr,
 	};
 }
 
@@ -366,6 +368,13 @@ void FillMuteMenu(
 		tr::lng_mute_menu_duration(tr::now),
 		[=] { show->showBox(Box(PickMuteBox, descriptor)); },
 		&st::menuIconMuteFor);
+
+	if (const auto peer = descriptor.svipePeer) {
+		menu->addAction(
+			Svipe::Tr(Svipe::Str::MessageTypes),
+			[=] { show->showBox(Box(Svipe::MessageTypesChatBox, not_null(peer))); },
+			&st::menuIconCustomize);
+	}
 
 	menu->addAction(
 		base::make_unique_q<MuteItem>(

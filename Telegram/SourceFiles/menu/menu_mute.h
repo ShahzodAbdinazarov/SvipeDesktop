@@ -9,6 +9,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "data/notify/data_peer_notify_volume.h" // VolumeController
 
+class PeerData;
+
 namespace Data {
 class Thread;
 struct NotifySound;
@@ -35,6 +37,9 @@ struct Descriptor {
 	Fn<void(Data::NotifySound)> updateSound;
 	Fn<void(TimeId)> updateMutePeriod;
 	Data::VolumeController volumeController;
+	// Svipe: set for a whole chat (not a topic or a category), which then gets a "Message types"
+	// item — the per-chat message-type notification rules.
+	PeerData *svipePeer = nullptr;
 };
 
 [[nodiscard]] Descriptor ThreadDescriptor(not_null<Data::Thread*> thread);
