@@ -1978,7 +1978,11 @@ void Updater::start(bool forceWait) {
 	}
 
 	_retryTimer.cancel();
-	const auto frequent = cAlphaVersion() || BuildIsCanary;
+	// Svipe: every build checks on Telegram's canary cadence, 10 minutes plus up to 5 random ones,
+	// instead of every 8-16 hours. A check is one GET of a ~90-byte static file (current6), so this
+	// is ~1.3 requests a second per 1000 running apps; the random part keeps them from arriving
+	// together.
+	const auto frequent = true;
 	const auto constDelay = frequent
 		? kFrequentUpdateDelayConstPart
 		: UpdateDelayConstPart;
