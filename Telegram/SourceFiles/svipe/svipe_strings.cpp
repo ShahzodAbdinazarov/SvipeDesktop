@@ -101,6 +101,10 @@ Translations Lookup(Str key) {
 		"Only bots can be added here.",
 		"Bu yerga faqat botlarni qo’shish mumkin.",
 		"Сюда можно добавлять только ботов." };
+	case Str::NotificationsBotsTitle: return {
+		"Notifications for bots",
+		"Botlar uchun bildirishnomalar",
+		"Уведомления от ботов" };
 	}
 	Unexpected("Key in Svipe::Tr.");
 }

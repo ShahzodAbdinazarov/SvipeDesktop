@@ -8,7 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_notifications.h"
 
 #include "svipe/svipe_bot_mute.h"
-#include "svipe/svipe_bots_box.h"
+#include "svipe/svipe_bots_section.h"
 #include "svipe/svipe_message_types.h"
 #include "svipe/svipe_message_types_box.h"
 #include "ui/layers/generic_box.h"
@@ -1202,7 +1202,7 @@ void BuildNotifyTypeSection(SectionBuilder &builder) {
 				!Svipe::BotMute::IsEnabled(session),
 				std::move(status));
 			bots->setClickedCallback([=] {
-				controller->show(Box(Svipe::BotsNotificationsBox, controller));
+				showOther(SvipeNotificationsBots::Id());
 			});
 			botsToggle->clicks(
 			) | rpl::on_next([=] {
