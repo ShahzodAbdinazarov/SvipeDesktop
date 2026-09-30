@@ -1,3 +1,8 @@
+7.2.11 (30.09.26)
+
+- Svipe Desktop updates itself from svipe.uz.
+- Svipe mark on the welcome screen.
+
 7.2.10 beta (25.09.26)
 
 - Update emoji to Unicode 17.

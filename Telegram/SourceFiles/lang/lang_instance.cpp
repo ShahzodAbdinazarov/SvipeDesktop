@@ -734,6 +734,9 @@ void Instance::applyValue(const QByteArray &key, const QByteArray &value) {
 		// Svipe: Telegram's cloud language packs name the app "Telegram Desktop" (intro, about box,
 		// menus); the built-in strings are already rebranded, the downloaded ones are not.
 		value.replace(u"Telegram Desktop"_q, u"Svipe Desktop"_q);
+		if (key == tr::lng_update_telegram.base) {
+			value.replace(u"Telegram"_q, u"Svipe"_q);
+		}
 		_nonDefaultSet[key] = 1;
 		if (!_derived) {
 			_values[key] = std::move(value);

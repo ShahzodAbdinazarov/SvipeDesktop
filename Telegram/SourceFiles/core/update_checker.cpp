@@ -732,6 +732,12 @@ bool UnpackUpdate(const QString &filepath) {
 		// v1 path below: it accepts nothing without a valid RSA signature
 		// over these same bytes.
 		LOG(("Update Info: trying v1 unpacking for a file with v2 magic."));
+	}
+	// Svipe: only v2 packages, signed by the keys in Resources/update. The v1 format is verified
+	// with Telegram's RSA keys (config.h), so it would accept Telegram's own builds.
+	if (true) {
+		LOG(("Update Error: Svipe accepts only v2 updates."));
+		return false;
 	} else if (BuildIsCanary) {
 		// The channel policy lives in the v2 envelope only, a classical
 		// RSA package has no channel and would let any official v1 file
@@ -1279,6 +1285,13 @@ void MtpChecker::start() {
 	}
 	if (BuildIsCanary) {
 		startCanary();
+		return;
+	}
+	// Svipe: updates come only over HTTP from our own server. The MTP feed is Telegram's
+	// @tdhbcfeed channel, which carries Telegram's builds.
+	if (true) {
+		LOG(("Update Info: Svipe has no MTP update feed."));
+		crl::on_main(this, [=] { fail(); });
 		return;
 	}
 	const auto updaterVersion = Platform::AutoUpdateVersion();

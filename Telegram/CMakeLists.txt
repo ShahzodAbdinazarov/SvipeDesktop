@@ -2604,7 +2604,8 @@ if (NOT DESKTOP_APP_DISABLE_AUTOUPDATE AND NOT build_macstore AND NOT build_wins
         )
     endif()
 
-    if (DESKTOP_APP_SPECIAL_TARGET)
+    # Svipe: our Mac release packs its own updates, see svipe-tools/release_mac.sh.
+    if (DESKTOP_APP_SPECIAL_TARGET OR APPLE)
         add_executable(Packer)
         init_target(Packer)
 
@@ -2630,6 +2631,10 @@ if (NOT DESKTOP_APP_DISABLE_AUTOUPDATE AND NOT build_macstore AND NOT build_wins
 
         if (DESKTOP_APP_USE_PACKAGED)
             target_compile_definitions(Packer PRIVATE PACKER_USE_PACKAGED)
+        endif()
+        if (NOT DESKTOP_APP_SPECIAL_TARGET)
+            # Svipe signs v2 packages only, with its own Ed25519 key; no DesktopPrivate RSA keys.
+            target_compile_definitions(Packer PRIVATE PACKER_DISABLE_PRIVATE)
         endif()
 
         set_target_properties(Packer PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${output_folder})

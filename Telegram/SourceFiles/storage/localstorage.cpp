@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "storage/localstorage.h"
 
+#include "svipe/svipe_config.h"
+
 #include "storage/serialize_common.h"
 #include "storage/storage_account.h"
 #include "storage/details/storage_file_utilities.h"
@@ -555,7 +557,9 @@ const QString &readAutoupdatePrefixRaw() {
 			return AutoupdatePrefix(value);
 		}
 	}
-	return AutoupdatePrefix("https://td.telegram.org");
+	// Svipe: our own feed (svipe.uz/dl/desktop/current6), never Telegram's — a Telegram package
+	// would not verify against Svipe's update keys anyway, but it would be downloaded first.
+	return AutoupdatePrefix(Svipe::BaseUrl() + u"/dl/desktop"_q);
 }
 
 void writeAutoupdatePrefix(const QString &prefix) {
