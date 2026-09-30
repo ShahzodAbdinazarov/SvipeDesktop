@@ -2406,7 +2406,7 @@ else()
         set(bundle_identifier "uz.svipe.mac")
     endif()
     set(bundle_entitlements "Telegram.entitlements")
-    set(output_name "Telegram")
+    set(output_name "Svipe")
 endif()
 
 if (CMAKE_GENERATOR STREQUAL Xcode)
