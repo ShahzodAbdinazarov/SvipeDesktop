@@ -23,8 +23,8 @@ FILE=svipe-desktop-mac.dmg
 BUNDLE_ID=uz.svipe.mac
 KEYS="$HOME/.svipe-desktop-update-keys"
 KEY_ID=svr-2026a
-SSH="ssh -i $HOME/.ssh/lavha_deploy -o ConnectTimeout=15 root@169.58.191.228"
-SCP="scp -i $HOME/.ssh/lavha_deploy -o ConnectTimeout=15"
+SSH="ssh -i $HOME/.ssh/lavha_deploy -o ConnectTimeout=15 -o ConnectionAttempts=5 root@169.58.191.228"
+SCP="scp -i $HOME/.ssh/lavha_deploy -o ConnectTimeout=15 -o ConnectionAttempts=5"
 export PATH=/opt/homebrew/bin:$PATH
 
 die() { echo "release_mac: $*" >&2; exit 1; }
@@ -117,7 +117,7 @@ set -euo pipefail
 cd $WWW
 [ "\$(sha256sum $FILE.new | cut -d' ' -f1)" = "$SHA" ] || { echo "hash mismatch after upload"; exit 1; }
 OLD=\$(grep '^LAVHA_DESKTOP_MAC_VERSION=' $HOME_DIR/.env | cut -d= -f2 || true)
-[ -f $FILE ] && cp -n $FILE $FILE.bak-\${OLD:-unknown}
+[ -f $FILE ] && cp --update=none $FILE $FILE.bak-\${OLD:-unknown}
 mv $FILE.new $FILE
 # The package lands before the feed that points at it.
 mv desktop/$UPDATE.new desktop/$UPDATE
