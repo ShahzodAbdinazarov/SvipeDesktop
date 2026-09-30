@@ -8,7 +8,6 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "data/data_session.h"
 #include "data/data_user.h"
 #include "history/history.h"
-#include "lang/lang_instance.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "settings/settings_common.h"
@@ -107,23 +106,6 @@ void FillExceptions(
 }
 
 } // namespace
-
-rpl::producer<QString> BotsRowLabel(not_null<Main::Session*> session) {
-	return rpl::single(
-		rpl::empty
-	) | rpl::then(rpl::merge(
-		BotMute::Changes(),
-		Lang::GetInstance().updated()
-	)) | rpl::map([=] {
-		if (!BotMute::IsEnabled(session)) {
-			return Tr(Str::NotificationsBotsOn);
-		}
-		const auto count = int(BotMute::Exceptions(session).size());
-		return count
-			? BotsExceptionsCount(count)
-			: Tr(Str::NotificationsBotsOff);
-	});
-}
 
 void BotsNotificationsBox(
 		not_null<Ui::GenericBox*> box,

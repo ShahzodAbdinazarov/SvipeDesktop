@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_notifications.h"
 
+#include "svipe/svipe_bot_mute.h"
 #include "svipe/svipe_bots_box.h"
 #include "svipe/svipe_message_types.h"
 #include "svipe/svipe_message_types_box.h"
@@ -1174,16 +1175,49 @@ void BuildNotifyTypeSection(SectionBuilder &builder) {
 			controller,
 			Data::DefaultNotify::User,
 			showOther);
-		// Svipe: bots as their own category, next to Private Chats (Android: the Bots row).
-		AddButtonWithLabel(
-			ctx.container,
-			Svipe::TrValue(Svipe::Str::NotificationsBots),
-			Svipe::BotsRowLabel(&controller->session()),
-			st::settingsButton,
-			{ &st::menuIconBot }
-		)->setClickedCallback([=] {
-			controller->show(Box(Svipe::BotsNotificationsBox, controller));
-		});
+		// Svipe: bots as their own category, next to Private Chats (Android: the Bots row), built
+		// exactly like its neighbours — title, "On, N exceptions" status, split switch.
+		{
+			const auto session = &controller->session();
+			auto status = rpl::single(
+				rpl::empty
+			) | rpl::then(
+				Svipe::BotMute::Changes()
+			) | rpl::map([=] {
+				const auto count = int(Svipe::BotMute::Exceptions(session).size());
+				return !count
+					? tr::lng_notification_click_to_change()
+					: (!Svipe::BotMute::IsEnabled(session)
+						? tr::lng_notification_on
+						: tr::lng_notification_off)(
+							lt_exceptions,
+							tr::lng_notification_exceptions(
+								lt_count,
+								rpl::single(float64(count))));
+			}) | rpl::flatten_latest();
+			const auto [bots, botsToggle, botsCheck] = SetupSplitToggle(
+				ctx.container,
+				Svipe::TrValue(Svipe::Str::NotificationsBots),
+				&st::menuIconBot,
+				!Svipe::BotMute::IsEnabled(session),
+				std::move(status));
+			bots->setClickedCallback([=] {
+				controller->show(Box(Svipe::BotsNotificationsBox, controller));
+			});
+			botsToggle->clicks(
+			) | rpl::on_next([=] {
+				const auto notify = !botsCheck->checked();
+				botsCheck->setChecked(notify, anim::type::normal);
+				Svipe::BotMute::SetEnabled(session, !notify);
+			}, botsToggle->lifetime());
+			// The rule can change from the category box or from another device.
+			Svipe::BotMute::Changes(
+			) | rpl::on_next([=] {
+				botsCheck->setChecked(
+					!Svipe::BotMute::IsEnabled(session),
+					anim::type::normal);
+			}, botsToggle->lifetime());
+		}
 		const auto groups = AddTypeButton(
 			ctx.container,
 			controller,
