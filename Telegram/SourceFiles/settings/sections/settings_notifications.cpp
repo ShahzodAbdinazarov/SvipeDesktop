@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_notifications.h"
 
+#include "svipe/svipe_bots_box.h"
 #include "svipe/svipe_message_types.h"
 #include "svipe/svipe_message_types_box.h"
 #include "ui/layers/generic_box.h"
@@ -1173,6 +1174,16 @@ void BuildNotifyTypeSection(SectionBuilder &builder) {
 			controller,
 			Data::DefaultNotify::User,
 			showOther);
+		// Svipe: bots as their own category, next to Private Chats (Android: the Bots row).
+		AddButtonWithLabel(
+			ctx.container,
+			Svipe::TrValue(Svipe::Str::NotificationsBots),
+			Svipe::BotsRowLabel(&controller->session()),
+			st::settingsButton,
+			{ &st::menuIconBot }
+		)->setClickedCallback([=] {
+			controller->show(Box(Svipe::BotsNotificationsBox, controller));
+		});
 		const auto groups = AddTypeButton(
 			ctx.container,
 			controller,

@@ -65,22 +65,93 @@ Translations Lookup(Str key) {
 		"Files and music",
 		"Fayl va musiqa",
 		"Файлы и музыка" };
+	case Str::NotificationsBots: return {
+		"Bots",
+		"Botlar",
+		"Боты" };
+	case Str::NotificationsBotsMessages: return {
+		"New Messages from Bots",
+		"Botlardan yangi xabarlar",
+		"Новые сообщения от ботов" };
+	case Str::NotificationsBotsInfo: return {
+		"Telegram counts bots as private chats, so silencing them means silencing your friends too. This silences only bots — new ones included.",
+		"Telegram botlarni shaxsiy chat deb hisoblaydi, ya'ni ularni o'chirsangiz do'stlaringiz ham o'chadi. Bu esa faqat botlarni o'chiradi — yangilarini ham.",
+		"Telegram считает ботов личными чатами, поэтому отключить их — значит отключить и друзей. Здесь отключаются только боты, включая новые." };
+	case Str::NotificationsBotsExceptions: return {
+		"Bots that still notify",
+		"Bildirishnoma yuboradigan botlar",
+		"Боты, которые уведомляют" };
+	case Str::NotificationsBotsExceptionsInfo: return {
+		"Bots added here keep notifying you while the rest stay silent.",
+		"Bu yerga qo’shilgan botlar bildirishnoma berishda davom etadi, qolganlari esa jim turadi.",
+		"Добавленные сюда боты продолжают уведомлять, остальные молчат." };
+	case Str::NotificationsBotsOn: return {
+		"On",
+		"Yoqilgan",
+		"Включены" };
+	case Str::NotificationsBotsOff: return {
+		"Muted",
+		"O'chirilgan",
+		"Отключены" };
+	case Str::NotificationsBotOn: return {
+		"Notifies",
+		"Yuboradi",
+		"Уведомляет" };
+	case Str::NotificationsBotsOnlyBots: return {
+		"Only bots can be added here.",
+		"Bu yerga faqat botlarni qo’shish mumkin.",
+		"Сюда можно добавлять только ботов." };
 	}
 	Unexpected("Key in Svipe::Tr.");
+}
+
+enum class Language {
+	English,
+	Uzbek,
+	Russian,
+};
+
+Language Current() {
+	const auto &lang = Lang::GetInstance();
+	const auto id = (lang.id() + u"|"_q + lang.baseId()).toLower();
+	if (id.startsWith(u"uz"_q) || id.contains(u"|uz"_q)) {
+		return Language::Uzbek;
+	} else if (id.startsWith(u"ru"_q) || id.contains(u"|ru"_q)) {
+		return Language::Russian;
+	}
+	return Language::English;
 }
 
 } // namespace
 
 QString Tr(Str key) {
-	const auto &lang = Lang::GetInstance();
-	const auto id = (lang.id() + u"|"_q + lang.baseId()).toLower();
 	const auto value = Lookup(key);
-	if (id.startsWith(u"uz"_q) || id.contains(u"|uz"_q)) {
-		return QString::fromUtf8(value.uz);
-	} else if (id.startsWith(u"ru"_q) || id.contains(u"|ru"_q)) {
-		return QString::fromUtf8(value.ru);
+	switch (Current()) {
+	case Language::Uzbek: return QString::fromUtf8(value.uz);
+	case Language::Russian: return QString::fromUtf8(value.ru);
+	case Language::English: break;
 	}
 	return QString::fromUtf8(value.en);
+}
+
+QString BotsExceptionsCount(int count) {
+	const auto n = QString::number(count);
+	switch (Current()) {
+	case Language::Uzbek:
+		return n + u" ta istisno"_q;
+	case Language::Russian: {
+		const auto mod10 = count % 10;
+		const auto mod100 = count % 100;
+		if (mod10 == 1 && mod100 != 11) {
+			return n + QString::fromUtf8(" исключение");
+		} else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+			return n + QString::fromUtf8(" исключения");
+		}
+		return n + QString::fromUtf8(" исключений");
+	}
+	case Language::English: break;
+	}
+	return n + (count == 1 ? u" exception"_q : u" exceptions"_q);
 }
 
 rpl::producer<QString> TrValue(Str key) {

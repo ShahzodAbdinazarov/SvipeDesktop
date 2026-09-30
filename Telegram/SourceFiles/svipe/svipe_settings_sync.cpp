@@ -7,6 +7,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "main/main_session.h"
 #include "svipe/svipe_api.h"
 #include "svipe/svipe_auth.h"
+#include "svipe/svipe_bot_mute.h"
 #include "svipe/svipe_message_types.h"
 #include "svipe/svipe_storage.h"
 
@@ -19,13 +20,19 @@ namespace {
 constexpr auto kPushDebounce = crl::time(1500);
 
 const auto kPath = u"/v1/settings/notifications"_q;
-// The bucket as the server last gave it, so the parts this client does not own go back untouched.
+// The bucket as the server last gave it, so any part this client does not know goes back untouched.
 const auto kRemoteValue = u"svipe_sync_remote_value"_q;
+
+// The bucket carries several rules; the latest of them is what the bucket is dated by.
+qint64 LocalUpdatedAt(not_null<Main::Session*> session) {
+	return std::max(
+		MessageTypes::UpdatedAt(session),
+		BotMute::UpdatedAt(session));
+}
 
 struct State {
 	bool pulled = false;
 	bool pulling = false;
-	bool pushQueued = false;
 	uint64 pushGeneration = 0;
 };
 
@@ -50,6 +57,12 @@ std::vector<std::pair<QString, QString>> Lists() {
 
 void PushNow(not_null<Main::Session*> session) {
 	auto value = Storage::Get(session, kRemoteValue).toObject();
+	value.insert(u"bots_muted"_q, BotMute::IsEnabled(session));
+	auto exceptions = QJsonArray();
+	for (const auto id : BotMute::Exceptions(session)) {
+		exceptions.push_back(double(id));
+	}
+	value.insert(u"bot_exceptions"_q, exceptions);
 	for (const auto &[name, prefix] : Lists()) {
 		value.insert(
 			name,
@@ -59,7 +72,7 @@ void PushNow(not_null<Main::Session*> session) {
 	body.insert(u"value"_q, value);
 	body.insert(
 		u"client_updated_at"_q,
-		double(MessageTypes::UpdatedAt(session)));
+		double(LocalUpdatedAt(session)));
 	Auth::EnsureToken(session, crl::guard(session, [=](QString token) {
 		if (token.isEmpty()) {
 			return; // Nothing is lost: the next change or start pushes again.
@@ -78,6 +91,15 @@ void Adopt(
 		not_null<Main::Session*> session,
 		const QJsonObject &value,
 		qint64 remoteAt) {
+	auto exceptions = std::vector<uint64>();
+	for (const auto &id : value.value(u"bot_exceptions"_q).toArray()) {
+		exceptions.push_back(uint64(id.toDouble()));
+	}
+	BotMute::Adopt(
+		session,
+		value.value(u"bots_muted"_q).toBool(),
+		exceptions,
+		remoteAt);
 	for (const auto &[name, prefix] : Lists()) {
 		// A device that predates a list sends no such key — "not mentioned" is not "none".
 		if (!value.contains(name)) {
@@ -117,7 +139,7 @@ void PullThen(not_null<Main::Session*> session, Fn<void()> then) {
 			const auto remoteAt = qint64(
 				result.value(u"client_updated_at"_q).toDouble());
 			const auto value = result.value(u"value"_q).toObject();
-			const auto localAt = MessageTypes::UpdatedAt(session);
+			const auto localAt = LocalUpdatedAt(session);
 			Storage::Set(session, kRemoteValue, value);
 			if (value.isEmpty() || remoteAt <= 0) {
 				// Nothing stored yet. If we hold a rule, this device is the one that knows.

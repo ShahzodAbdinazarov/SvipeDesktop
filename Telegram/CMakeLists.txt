@@ -1961,6 +1961,10 @@ PRIVATE
     svipe/svipe_api.h
     svipe/svipe_auth.cpp
     svipe/svipe_auth.h
+    svipe/svipe_bot_mute.cpp
+    svipe/svipe_bot_mute.h
+    svipe/svipe_bots_box.cpp
+    svipe/svipe_bots_box.h
     svipe/svipe_config.cpp
     svipe/svipe_config.h
     svipe/svipe_message_types.cpp

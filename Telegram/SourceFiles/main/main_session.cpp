@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 
 #include "base/call_delayed.h"
+#include "svipe/svipe_bot_mute.h"
 #include "svipe/svipe_settings_sync.h"
 
 #include "apiwrap.h"
@@ -280,6 +281,7 @@ Session::Session(
 	// Delayed so it does not compete with the requests a session makes as it starts.
 	base::call_delayed(5000, this, [=] {
 		Svipe::SettingsSync::Pull(this);
+		Svipe::BotMute::Watch(this);
 	});
 }
 

@@ -22,7 +22,19 @@ enum class Str {
 	TypeVoice,
 	TypeStickers,
 	TypeFiles,
+	NotificationsBots,
+	NotificationsBotsMessages,
+	NotificationsBotsInfo,
+	NotificationsBotsExceptions,
+	NotificationsBotsExceptionsInfo,
+	NotificationsBotsOn,
+	NotificationsBotsOff,
+	NotificationsBotOn,
+	NotificationsBotsOnlyBots,
 };
+
+// "N exceptions", with each language's plural forms.
+[[nodiscard]] QString BotsExceptionsCount(int count);
 
 [[nodiscard]] QString Tr(Str key);
 [[nodiscard]] rpl::producer<QString> TrValue(Str key);
