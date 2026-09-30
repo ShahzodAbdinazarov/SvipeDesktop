@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "intro/intro_step.h"
 
+#include "ui/painter.h"
+
 #include "intro/intro_widget.h"
 #include "intro/intro_signup.h"
 #include "storage/localstorage.h"
@@ -474,16 +476,28 @@ void Step::paintCover(QPainter &p, int top) {
 	st::introCoverLeft.paint(p, left, coverHeight - st::introCoverLeft.height(), width());
 	st::introCoverRight.paint(p, width() - right - st::introCoverRight.width(), coverHeight - st::introCoverRight.height(), width());
 
-	auto planeLeft = (width() - st::introCoverIcon.width()) / 2 - st::introCoverIconLeft;
-	auto planeTop = top + st::introCoverIconTop;
+	// Svipe: the standalone mark (white line-art reel) where Telegram draws its paper plane.
+	static const auto mark = [] {
+		auto result = QImage(u":/gui/art/svipe_intro_mark.png"_q);
+		const auto size = st::introSvipeMarkSize * style::DevicePixelRatio();
+		result = result.scaled(
+			size,
+			size,
+			Qt::KeepAspectRatio,
+			Qt::SmoothTransformation);
+		result.setDevicePixelRatio(style::DevicePixelRatio());
+		return result;
+	}();
+	auto markLeft = (width() - st::introSvipeMarkSize) / 2;
+	const auto markTop = top + st::introSvipeMarkTop;
 	if (top < 0 && !_hasCover) {
 		const auto ratio = float64(st::introPlaneWidth / st::introPlaneHeight);
-		auto deltaLeft = -int(base::SafeRound(ratio * top));
-//		auto deltaTop = top;
-		planeLeft += deltaLeft;
-	//	planeTop += top;
+		markLeft += -int(base::SafeRound(ratio * top));
 	}
-	st::introCoverIcon.paint(p, planeLeft, planeTop, width());
+	{
+		auto hq = PainterHighQualityEnabler(p);
+		p.drawImage(markLeft, markTop, mark);
+	}
 }
 
 int Step::contentLeft() const {
