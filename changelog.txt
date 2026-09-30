@@ -1,3 +1,7 @@
+7.2.12 (30.09.26)
+
+- Svipe Desktop 1.0.0: the app shows Svipe's own version number.
+
 7.2.11 (30.09.26)
 
 - Svipe Desktop updates itself from svipe.uz.

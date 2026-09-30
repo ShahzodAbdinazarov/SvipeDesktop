@@ -1977,6 +1977,7 @@ PRIVATE
     svipe/svipe_storage.h
     svipe/svipe_strings.cpp
     svipe/svipe_strings.h
+    svipe/svipe_version.h
     tde2e/tde2e_integration.cpp
     tde2e/tde2e_integration.h
     test/test_activation.cpp
@@ -2553,6 +2554,12 @@ if (MSVC)
 endif()
 
 target_prepare_qrc(Telegram)
+
+# Svipe: the version people see (About, settings, sessions list, Finder) is Svipe's own, from
+# build/svipe_version. AppVersion stays on Telegram's numbering: it is also the tdata storage
+# format version and the update feed's comparison key, and lowering it would misread saved data.
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/build/svipe_version svipe_version_string LIMIT_COUNT 1)
+target_compile_definitions(Telegram PRIVATE SVIPE_VERSION_STR="${svipe_version_string}")
 
 if (NOT DESKTOP_APP_DISABLE_AUTOUPDATE AND NOT build_macstore AND NOT build_winstore)
     add_executable(Updater WIN32)

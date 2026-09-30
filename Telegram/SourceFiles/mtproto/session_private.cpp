@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "base/options.h"
+#include "svipe/svipe_version.h"
 #include "mtproto/session_private.h"
 
 #include "core/version.h"
@@ -88,7 +89,8 @@ using namespace details;
 #else
 	const auto arch = ' ' + QSysInfo::buildCpuArchitecture();
 #endif
-	return QString::fromLatin1(AppVersionStr) + arch + ([] {
+	// Svipe: the sessions list shows "Svipe Desktop 1.0.0", not Telegram's numbering.
+	return QString::fromLatin1(Svipe::VersionStr) + arch + ([] {
 #if defined OS_MAC_STORE
 		return u" Mac App Store"_q;
 #elif defined OS_WIN_STORE // OS_MAC_STORE

@@ -40,9 +40,9 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$BUILD" = 1 ]; then
-  KEYS="$HOME/StudioProjects/Lavha/apikeys.properties"
-  ID=$(grep -i 'api_id\|APP_ID' "$KEYS" | head -1 | cut -d= -f2 | tr -d ' "')
-  HASH=$(grep -i 'api_hash\|APP_HASH' "$KEYS" | head -1 | cut -d= -f2 | tr -d ' "')
+  APIKEYS="$HOME/StudioProjects/Lavha/apikeys.properties"
+  ID=$(grep -i 'api_id\|APP_ID' "$APIKEYS" | head -1 | cut -d= -f2 | tr -d ' "')
+  HASH=$(grep -i 'api_hash\|APP_HASH' "$APIKEYS" | head -1 | cut -d= -f2 | tr -d ' "')
   (cd "$ROOT/Telegram" && ./configure.sh -D TDESKTOP_API_ID="$ID" -D TDESKTOP_API_HASH="$HASH" \
     -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF -D CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
     -D CMAKE_CXX_FLAGS=-DMETA_NO_STD_FORWARD_DECLARATIONS \
