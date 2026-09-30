@@ -1,3 +1,7 @@
+7.2.13 (30.09.26)
+
+- Svipe Desktop 1.0.1: a test release of the self-update.
+
 7.2.12 (30.09.26)
 
 - Svipe Desktop 1.0.0: the app shows Svipe's own version number.
