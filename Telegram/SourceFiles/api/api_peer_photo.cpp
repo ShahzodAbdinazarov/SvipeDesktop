@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "api/api_peer_photo.h"
 
+#include "svipe/svipe_avatar_archive.h"
+
 #include "api/api_updates.h"
 #include "apiwrap.h"
 #include "base/random.h"
@@ -804,7 +806,7 @@ void PeerPhoto::requestUserPhotos(
 		MTP_int(0),
 		MTP_long(afterId),
 		MTP_int(kSharedMediaLimit)
-	)).done([this, user](const MTPphotos_Photos &result) {
+	)).done([this, user, afterId](const MTPphotos_Photos &result) {
 		_userPhotosRequests.remove(user);
 
 		auto fullCount = result.match([](const MTPDphotos_photos &d) {
@@ -836,6 +838,15 @@ void PeerPhoto::requestUserPhotos(
 			}
 		}
 
+		// Svipe: keep a copy of every profile photo seen, so a deleted one can still be shown.
+		{
+			auto photos = std::vector<not_null<PhotoData*>>();
+			photos.reserve(photoIds.size());
+			for (const auto id : photoIds) {
+				photos.push_back(owner.photo(id));
+			}
+			Svipe::AvatarArchive::Remember(user, photos, fullCount, !afterId);
+		}
 		_session->storage().add(Storage::UserPhotosAddSlice(
 			peerToUser(user->id),
 			std::move(photoIds),

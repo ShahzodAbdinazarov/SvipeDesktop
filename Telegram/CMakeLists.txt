@@ -1961,6 +1961,8 @@ PRIVATE
     svipe/svipe_api.h
     svipe/svipe_auth.cpp
     svipe/svipe_auth.h
+    svipe/svipe_avatar_archive.cpp
+    svipe/svipe_avatar_archive.h
     svipe/svipe_bot_mute.cpp
     svipe/svipe_bot_mute.h
     svipe/svipe_bots_section.cpp
