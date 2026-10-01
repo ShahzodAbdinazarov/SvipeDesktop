@@ -350,6 +350,18 @@ QString ProfileImagesCount(int count) {
 	return n + (count == 1 ? u" image"_q : u" images"_q);
 }
 
+QString ProfileImagesButton(int count) {
+	const auto n = QString::number(count);
+	switch (Current()) {
+	case Language::Uzbek:
+		return n + u" ta profil rasmi"_q;
+	case Language::Russian:
+		return n + QString::fromUtf8(" фото профиля");
+	case Language::English: break;
+	}
+	return n + (count == 1 ? u" profile image"_q : u" profile images"_q);
+}
+
 rpl::producer<QString> TrValue(Str key) {
 	return rpl::single(
 		rpl::empty

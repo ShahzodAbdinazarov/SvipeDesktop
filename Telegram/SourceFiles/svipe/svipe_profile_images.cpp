@@ -12,7 +12,9 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "history/history.h"
 #include "history/history_item.h"
 #include "info/info_controller.h"
+#include "info/media/info_media_buttons.h"
 #include "info/media/info_media_common.h"
+#include "info/profile/info_profile_icon.h"
 #include "info/media/info_media_list_section.h"
 #include "info/media/info_media_widget.h"
 #include "info/media/info_media_list_widget.h"
@@ -20,9 +22,16 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "overview/overview_layout.h"
 #include "svipe/svipe_avatar_archive.h"
 #include "svipe/svipe_strings.h"
+#include "lang/lang_keys.h"
+#include "ui/layers/generic_box.h"
 #include "ui/rp_widget.h"
+#include "ui/widgets/buttons.h"
+#include "ui/wrap/slide_wrap.h"
+#include "ui/wrap/vertical_layout.h"
+#include "window/window_session_controller.h"
 #include "ui/ui_utility.h"
 #include "styles/style_info.h"
+#include "styles/style_layers.h"
 
 #include <QtGui/QImageReader>
 
@@ -106,13 +115,14 @@ struct Entry {
 		crl::time(0));
 }
 
+// Bound to the window, not to a profile: the classic layout shows the grid in a box that may outlive
+// the profile it was opened from.
 class SubController final : public AbstractController {
 public:
 	SubController(
-		not_null<AbstractController*> parent,
+		not_null<Window::SessionController*> window,
 		not_null<UserData*> user)
-	: AbstractController(parent->parentController())
-	, _parent(parent)
+	: AbstractController(window)
 	, _user(user)
 	, _key(user) {
 	}
@@ -126,15 +136,11 @@ public:
 	Section section() const override {
 		return Section(Section::MediaType::Photo);
 	}
-	style::color listBackground() const override {
-		return _parent->listBackground();
-	}
 	[[nodiscard]] not_null<UserData*> user() const {
 		return _user;
 	}
 
 private:
-	const not_null<AbstractController*> _parent;
 	const not_null<UserData*> _user;
 	const Key _key;
 
@@ -365,7 +371,7 @@ public:
 		Info::Profile::MediaTabContext context,
 		not_null<UserData*> user)
 	: _user(user)
-	, _subController(context.controller, user)
+	, _subController(context.controller->parentController(), user)
 	, _host(context.parent) {
 		const auto host = _host.data();
 		_list = Ui::CreateChild<ListWidget>(host, &_subController);
@@ -431,7 +437,55 @@ private:
 
 };
 
+void ShowBox(
+		not_null<Window::SessionController*> window,
+		not_null<UserData*> user) {
+	window->show(Box([=](not_null<Ui::GenericBox*> box) {
+		box->setTitle(TrValue(Str::ProfileImages));
+		box->setWidth(st::boxWideWidth);
+		const auto controller = new SubController(window, user);
+		const auto list = box->addRow(
+			object_ptr<ListWidget>(box, controller),
+			QMargins());
+		// The list outlives its members' teardown only through its own lifetime.
+		list->lifetime().add([=] { delete controller; });
+		const auto update = [=] {
+			const auto top = box->scrollTop() - list->y();
+			list->setVisibleTopBottom(top, top + box->scrollHeight());
+		};
+		box->scrolls() | rpl::on_next(update, list->lifetime());
+		list->heightValue() | rpl::on_next([=](int) {
+			update();
+		}, list->lifetime());
+		box->addButton(tr::lng_close(), [=] { box->closeBox(); });
+	}));
+}
+
 } // namespace
+
+void AddClassicButton(
+		not_null<Ui::VerticalLayout*> parent,
+		not_null<Window::SessionController*> window,
+		not_null<UserData*> user,
+		Ui::MultiSlideTracker &tracker,
+		const style::icon &icon) {
+	if (user->isBot()) {
+		return;
+	}
+	user->session().api().peerPhoto().requestUserPhotos(user, {});
+	const auto wrap = Info::Media::AddCountedButton(
+		parent,
+		CountValue(user),
+		[](int count) { return ProfileImagesButton(count); },
+		tracker);
+	object_ptr<Info::Profile::FloatingIcon>(
+		wrap->entity(),
+		icon,
+		st::infoSharedMediaButtonIconPosition);
+	wrap->entity()->addClickHandler([=] {
+		ShowBox(window, user);
+	});
+}
 
 Info::Profile::MediaTabDescriptor MakeTabDescriptor(not_null<UserData*> user) {
 	// Opening the profile loads the photo list, as the Android profile does: that is both what the

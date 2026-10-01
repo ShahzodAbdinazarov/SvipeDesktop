@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_shared_media_classic.h"
 
+#include "svipe/svipe_profile_images.h"
+
 #include "core/ui_integration.h"
 #include "data/components/recent_shared_media_gifts.h"
 #include "data/data_channel.h"
@@ -353,6 +355,15 @@ object_ptr<Ui::SlideWrap<Ui::RpWidget>> SetupSharedMediaClassic(
 	addMediaButton(MediaType::Poll, st::infoIconMediaPoll);
 	addMediaButton(MediaType::RoundVoiceFile, st::infoIconMediaVoice);
 	addMediaButton(MediaType::GIF, st::infoIconMediaGif);
+	// Svipe: current and kept-after-deletion profile photos.
+	if (const auto user = peer->asUser(); user && !topic && !sublist) {
+		Svipe::ProfileImages::AddClassicButton(
+			content,
+			controller->parentController(),
+			user,
+			tracker,
+			st::infoIconMediaPhoto);
+	}
 	if (const auto bot = peer->asBot()) {
 		addCommonGroupsButton(bot, st::infoIconMediaGroup);
 		addSimilarPeersButton(bot, st::infoIconMediaBot);
