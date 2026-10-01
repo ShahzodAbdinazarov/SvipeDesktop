@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/media/info_media_list_widget.h"
 
+#include "svipe/svipe_profile_images.h"
+
 #include "info/global_media/info_global_media_provider.h"
 #include "info/media/info_media_common.h"
 #include "info/media/info_media_provider.h"
@@ -108,6 +110,9 @@ struct ListWidget::DateBadge {
 
 [[nodiscard]] std::unique_ptr<ListProvider> MakeProvider(
 		not_null<AbstractController*> controller) {
+	if (auto svipe = Svipe::ProfileImages::MakeProvider(controller)) {
+		return svipe;
+	}
 	if (controller->isDownloads()) {
 		return std::make_unique<Downloads::Provider>(controller);
 	} else if (controller->musicPeer()) {

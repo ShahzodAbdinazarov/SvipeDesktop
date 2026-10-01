@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_inner_widget.h"
 
+#include "svipe/svipe_profile_images.h"
+
 #include "info/info_controller.h"
 #include "info/info_memento.h"
 #include "info/info_wrap_widget.h"
@@ -342,6 +344,10 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			}
 			if (_peer->asBot() || _peer->asBroadcast()) {
 				tabs.push_back(MakeSimilarPeersTabDescriptor(_peer));
+			}
+			// Svipe: current and kept-after-deletion profile photos, the last tab as on Android.
+			if (const auto user = _peer->asUser(); user && !user->isBot()) {
+				tabs.push_back(Svipe::ProfileImages::MakeTabDescriptor(user));
 			}
 		}
 		auto tabsHost = object_ptr<TabsHost>(

@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "overview/overview_layout.h"
 
+#include "svipe/svipe_strings.h"
+
 #include "overview/overview_checkbox.h"
 #include "overview/overview_layout_delegate.h"
 #include "core/application.h"
@@ -400,6 +402,7 @@ Photo::Photo(
 , _storyShowPinned(options.storyShowPinned)
 , _storyHidden(options.storyHidden)
 , _storyShowHidden(options.storyShowHidden)
+, _svipeDeleted(options.svipeDeleted)
 , _link(_sensitiveSpoiler
 	? HistoryView::MakeSensitiveMediaLink(
 		std::make_shared<LambdaClickHandler>(crl::guard(this, [=] {
@@ -516,6 +519,29 @@ void Photo::paint(Painter &p, const QRect &clip, TextSelection selection, const 
 			? st::storyPinnedIconSelected
 			: st::storyPinnedIcon;
 		icon.paint(p, _width - icon.width(), 0, _width);
+	}
+	if (_svipeDeleted) {
+		// Svipe: the red "Deleted" pill of the Android grid (SharedPhotoVideoCell2).
+		const auto text = Svipe::Tr(Svipe::Str::DeletedLabel);
+		const auto &font = st::normalFont;
+		const auto padding = QMargins(
+			st::lineWidth * 6,
+			st::lineWidth * 2,
+			st::lineWidth * 6,
+			st::lineWidth * 2);
+		const auto pill = QRect(
+			st::lineWidth * 4,
+			_height - st::lineWidth * 4 - font->height
+				- padding.top() - padding.bottom(),
+			font->width(text) + padding.left() + padding.right(),
+			font->height + padding.top() + padding.bottom());
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		p.setBrush(st::attentionButtonFg);
+		p.drawRoundedRect(pill, pill.height() / 2., pill.height() / 2.);
+		p.setPen(st::activeButtonFg);
+		p.setFont(font);
+		p.drawText(pill, text, style::al_center);
 	}
 
 	const auto checkDelta = st::overviewCheckSkip + st::overviewCheck.size;

@@ -55,6 +55,7 @@ enum class Str {
 	MsgSyncRemindInfo,
 	MsgSyncNotSet,
 	DeletedLabel,
+	ProfileImages,
 	ShowInChat,
 	RecentActionsEmpty,
 	YouDeletedMessage,
@@ -63,6 +64,7 @@ enum class Str {
 
 // "N exceptions", with each language's plural forms.
 [[nodiscard]] QString BotsExceptionsCount(int count);
+[[nodiscard]] QString ProfileImagesCount(int count);
 
 [[nodiscard]] QString Tr(Str key);
 [[nodiscard]] rpl::producer<QString> TrValue(Str key);

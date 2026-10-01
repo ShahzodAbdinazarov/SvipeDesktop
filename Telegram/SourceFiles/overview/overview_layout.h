@@ -208,6 +208,7 @@ struct MediaOptions {
 	bool storyShowPinned = false;
 	bool storyHidden = false;
 	bool storyShowHidden = false;
+	bool svipeDeleted = false; // Svipe: a profile photo its owner deleted
 };
 
 class Photo final : public ItemBase {
@@ -255,6 +256,7 @@ private:
 	bool _storyShowPinned : 1 = false;
 	bool _storyHidden : 1 = false;
 	bool _storyShowHidden : 1 = false;
+	bool _svipeDeleted = false;
 
 	ClickHandlerPtr _link;
 

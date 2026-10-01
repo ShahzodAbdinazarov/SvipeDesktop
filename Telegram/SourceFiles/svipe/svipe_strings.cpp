@@ -189,6 +189,10 @@ Translations Lookup(Str key) {
 		"Not set",
 		"Tanlanmagan",
 		"Не выбрано" };
+	case Str::ProfileImages: return {
+		"Profile Images",
+		"Profil rasmlari",
+		"Фото профиля" };
 	case Str::DeletedLabel: return {
 		"Deleted",
 		"O'chirilgan",
@@ -264,6 +268,18 @@ QString BotsExceptionsCount(int count) {
 	case Language::English: break;
 	}
 	return n + (count == 1 ? u" exception"_q : u" exceptions"_q);
+}
+
+QString ProfileImagesCount(int count) {
+	const auto n = QString::number(count);
+	switch (Current()) {
+	case Language::Uzbek:
+		return n + u" ta rasm"_q;
+	case Language::Russian:
+		return n + QString::fromUtf8(" фото"); // indeclinable
+	case Language::English: break;
+	}
+	return n + (count == 1 ? u" image"_q : u" images"_q);
 }
 
 rpl::producer<QString> TrValue(Str key) {
