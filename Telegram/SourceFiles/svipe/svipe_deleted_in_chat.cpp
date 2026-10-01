@@ -221,7 +221,8 @@ void Restore(not_null<History*> history) {
 		const auto item = history->createItem(
 			session->data().nextLocalMessageId(),
 			ForChat(data, out),
-			MessageFlags());
+			// Not on the server any more: keeps it out of read requests and every other server call.
+			MessageFlag::Local);
 		state.marked.emplace(item->fullId());
 		restored.push_back(item->fullId());
 		added = true;
