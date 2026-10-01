@@ -1,3 +1,7 @@
+7.2.15 (01.10.26)
+
+- Svipe Desktop 1.0.3: Telegram Desktop fixes from upstream — crashes in syntax highlighting and emoji interactions, chat loading stalls, call library hardening.
+
 7.2.14 (30.09.26)
 
 - Svipe Desktop 1.0.2: checks for updates every 10-15 minutes instead of every 8-16 hours.
