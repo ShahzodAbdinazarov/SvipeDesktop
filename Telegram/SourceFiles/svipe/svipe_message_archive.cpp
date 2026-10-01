@@ -398,6 +398,11 @@ rpl::producer<PeerId> Updates(not_null<Main::Session*> session) {
 	return StateFor(session).updates.events();
 }
 
+QByteArray LiveBytes(not_null<HistoryItem*> item) {
+	const auto remembered = FindRemembered(item);
+	return remembered ? remembered->bytes : QByteArray();
+}
+
 std::optional<MTPMessage> Parse(const QByteArray &bytes) {
 	if (bytes.isEmpty() || (bytes.size() % sizeof(mtpPrime))) {
 		return std::nullopt;

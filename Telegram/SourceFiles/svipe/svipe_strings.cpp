@@ -101,6 +101,18 @@ Translations Lookup(Str key) {
 		"Only bots can be added here.",
 		"Bu yerga faqat botlarni qo’shish mumkin.",
 		"Сюда можно добавлять только ботов." };
+	case Str::RecentActionsEmpty: return {
+		"No deleted or edited messages here yet",
+		"Bu yerda hali o'chgan yoki tahrirlangan xabar yo'q",
+		"Здесь пока нет удалённых или изменённых сообщений" };
+	case Str::YouDeletedMessage: return {
+		"You deleted this message:",
+		"Siz bu xabarni o'chirdingiz:",
+		"Вы удалили это сообщение:" };
+	case Str::YouEditedMessage: return {
+		"You edited this message:",
+		"Siz bu xabarni tahrirladingiz:",
+		"Вы изменили это сообщение:" };
 	case Str::NotificationsBotsTitle: return {
 		"Notifications for bots",
 		"Botlar uchun bildirishnomalar",

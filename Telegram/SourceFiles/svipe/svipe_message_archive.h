@@ -79,4 +79,7 @@ void SetMergeKey(
 
 [[nodiscard]] std::optional<MTPMessage> Parse(const QByteArray &bytes);
 
+// The remembered MTP bytes of a live message (the newest version an edit chain ends at), if any.
+[[nodiscard]] QByteArray LiveBytes(not_null<HistoryItem*> item);
+
 } // namespace Svipe::MessageArchive

@@ -32,6 +32,9 @@ enum class Str {
 	NotificationsBotOn,
 	NotificationsBotsOnlyBots,
 	NotificationsBotsTitle,
+	RecentActionsEmpty,
+	YouDeletedMessage,
+	YouEditedMessage,
 };
 
 // "N exceptions", with each language's plural forms.
