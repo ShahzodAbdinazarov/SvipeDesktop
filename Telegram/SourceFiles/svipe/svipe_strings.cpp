@@ -189,6 +189,74 @@ Translations Lookup(Str key) {
 		"Not set",
 		"Tanlanmagan",
 		"Не выбрано" };
+	case Str::AvatarArchive: return {
+		"Profile photo archive",
+		"Profil rasmlari arxivi",
+		"Архив фото профиля" };
+	case Str::AvatarVisibilityHeader: return {
+		"Who can see my archived photos",
+		"Arxivdagi rasmlarimni kim ko'ra oladi",
+		"Кто видит мои архивные фото" };
+	case Str::AvatarVisibilityEveryone: return {
+		"Everyone",
+		"Hamma",
+		"Все" };
+	case Str::AvatarVisibilityContacts: return {
+		"My contacts",
+		"Kontaktlarim",
+		"Мои контакты" };
+	case Str::AvatarContactsConfirm: return {
+		"To check who is in your contacts, Svipe stores your contacts' Telegram IDs on its own server. They are used only for this check — never passed to anyone else and never used for any other purpose — and are deleted as soon as you pick another option.",
+		"Kim kontaktingiz ekanini tekshirish uchun Svipe kontaktlaringizning Telegram ID larini o'z serverida saqlaydi. Ular faqat shu tekshiruv uchun ishlatiladi — hech qachon uchinchi tomonga berilmaydi va boshqa hech qanday maqsadda ishlatilmaydi — hamda boshqa variantni tanlashingiz bilan o'chiriladi.",
+		"Чтобы проверять, кто у вас в контактах, Svipe хранит Telegram ID ваших контактов на своём сервере. Они используются только для этой проверки — никогда не передаются третьим лицам и не используются ни для каких других целей — и удаляются, как только вы выберете другой вариант." };
+	case Str::AvatarVisibilityNobody: return {
+		"Nobody",
+		"Hech kim",
+		"Никто" };
+	case Str::AvatarVisibilityOff: return {
+		"Don't archive my photos",
+		"Rasmlarimni arxivlamang",
+		"Не архивировать мои фото" };
+	case Str::AvatarVisibilityInfo: return {
+		"Your archived photos are only ever shown to people Telegram already lets see your current profile photo. This setting can narrow that down, never widen it.",
+		"Arxivdagi rasmlaringiz faqat Telegram allaqachon joriy profil rasmingizni ko'rishga ruxsat bergan odamlarga ko'rinadi. Bu sozlama uni faqat toraytiradi, hech qachon kengaytirmaydi.",
+		"Архивные фото показываются только тем, кому Telegram и так разрешает видеть ваше текущее фото профиля. Эта настройка может только сузить круг, но не расширить его." };
+	case Str::AvatarOptOutConfirm: return {
+		"Your photos will no longer be archived, and everything already archived will be deleted.",
+		"Rasmlaringiz endi arxivlanmaydi va arxivdagilari o'chiriladi.",
+		"Ваши фото больше не будут архивироваться, а уже сохранённые будут удалены." };
+	case Str::AvatarSyncHeader: return {
+		"Sync",
+		"Sinxronlash",
+		"Синхронизация" };
+	case Str::AvatarSyncEnabled: return {
+		"Share photos I saved",
+		"Saqlagan rasmlarimni ulashish",
+		"Делиться сохранёнными фото" };
+	case Str::AvatarSyncInfo: return {
+		"When someone deletes a profile photo you had already seen, this device can share its copy so other people who are allowed to see that person can still open it. Turning this off keeps the photos on this device.",
+		"Kimdir siz allaqachon ko'rgan profil rasmini o'chirsa, bu qurilma o'z nusxasini ulashishi mumkin — shunda o'sha odamni ko'rishga ruxsati bor boshqalar ham uni ocha oladi. O'chirsangiz, rasmlar shu qurilmada qoladi.",
+		"Если кто-то удалит фото профиля, которое вы уже видели, это устройство может поделиться своей копией — тогда её смогут открыть и другие, кому разрешено видеть этого человека. Если выключить, фото останутся только на этом устройстве." };
+	case Str::AvatarDeleteArchive: return {
+		"Delete my archived photos",
+		"Arxivdagi rasmlarimni o'chirish",
+		"Удалить мои архивные фото" };
+	case Str::AvatarDeleteArchiveInfo: return {
+		"Removes every photo of you from the archive. New ones are archived again unless you choose \"Don't archive my photos\" above.",
+		"Arxivdan sizga tegishli barcha rasmni olib tashlaydi. Yuqorida \"Rasmlarimni arxivlamang\" ni tanlamasangiz, yangilari yana arxivlanadi.",
+		"Удаляет из архива все ваши фотографии. Новые будут архивироваться снова, если выше не выбрано «Не архивировать мои фото»." };
+	case Str::AvatarDeleteArchiveConfirm: return {
+		"Delete every archived photo of you?",
+		"Sizga tegishli barcha arxiv rasmi o'chirilsinmi?",
+		"Удалить все ваши архивные фото?" };
+	case Str::AvatarArchiveDeleted: return {
+		"Archived photos deleted",
+		"Arxivdagi rasmlar o'chirildi",
+		"Архивные фото удалены" };
+	case Str::AvatarSettingsFailed: return {
+		"Couldn't reach the server. Try again.",
+		"Serverga ulanib bo'lmadi. Qayta urinib ko'ring.",
+		"Не удалось связаться с сервером. Попробуйте ещё раз." };
 	case Str::ProfileImages: return {
 		"Profile Images",
 		"Profil rasmlari",

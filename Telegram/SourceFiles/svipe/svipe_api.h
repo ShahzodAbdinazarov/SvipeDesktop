@@ -27,4 +27,13 @@ void Post(
 	Done done);
 void Delete(const QString &path, const QString &token, Done done);
 
+// Raw bytes to / from a presigned storage URL (absolute, or relative to the Svipe server for the
+// dev "local" blob store). No Svipe token: the signature in the URL is the authorization.
+void PutBytes(
+	const QString &url,
+	const QByteArray &bytes,
+	const QString &contentType,
+	Fn<void(int code)> done);
+void GetBytes(const QString &url, Fn<void(QByteArray bytes, int code)> done);
+
 } // namespace Svipe::Api

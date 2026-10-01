@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_privacy_security.h"
 
 #include "svipe/svipe_message_sync.h"
+#include "svipe/svipe_avatar_sync.h"
 
 #include "settings/settings_common_session.h"
 
@@ -1172,6 +1173,7 @@ void BuildPrivacySecuritySectionContent(SectionBuilder &builder) {
 	BuildArchiveAndMuteSection(builder);
 	BuildBotsAndWebsitesSection(builder);
 	Svipe::MessageSync::BuildSettings(builder);
+	Svipe::AvatarSync::BuildSettings(builder);
 	BuildConfirmationExtensions(builder);
 	BuildTopPeersSection(builder);
 	BuildSelfDestructionSection(builder, trigger());

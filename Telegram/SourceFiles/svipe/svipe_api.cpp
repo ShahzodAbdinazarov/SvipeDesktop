@@ -74,6 +74,40 @@ void Post(
 		std::move(done));
 }
 
+void PutBytes(
+		const QString &url,
+		const QByteArray &bytes,
+		const QString &contentType,
+		Fn<void(int code)> done) {
+	auto request = QNetworkRequest(QUrl(url.startsWith('/') ? (BaseUrl() + url) : url));
+	request.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
+	request.setTransferTimeout(4 * kTimeoutMs);
+	const auto reply = Manager().put(request, bytes);
+	QObject::connect(reply, &QNetworkReply::finished, [=] {
+		const auto code = reply->attribute(
+			QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		reply->deleteLater();
+		if (done) {
+			done(code);
+		}
+	});
+}
+
+void GetBytes(const QString &url, Fn<void(QByteArray bytes, int code)> done) {
+	auto request = QNetworkRequest(QUrl(url.startsWith('/') ? (BaseUrl() + url) : url));
+	request.setTransferTimeout(4 * kTimeoutMs);
+	const auto reply = Manager().get(request);
+	QObject::connect(reply, &QNetworkReply::finished, [=] {
+		const auto code = reply->attribute(
+			QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		auto bytes = reply->readAll();
+		reply->deleteLater();
+		if (done) {
+			done(std::move(bytes), code);
+		}
+	});
+}
+
 void Delete(const QString &path, const QString &token, Done done) {
 	Finish(Manager().deleteResource(Request(path, token)), std::move(done));
 }

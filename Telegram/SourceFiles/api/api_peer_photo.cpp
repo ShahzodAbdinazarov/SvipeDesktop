@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_peer_photo.h"
 
 #include "svipe/svipe_avatar_archive.h"
+#include "svipe/svipe_avatar_sync.h"
 
 #include "api/api_updates.h"
 #include "apiwrap.h"
@@ -846,6 +847,7 @@ void PeerPhoto::requestUserPhotos(
 				photos.push_back(owner.photo(id));
 			}
 			Svipe::AvatarArchive::Remember(user, photos, fullCount, !afterId);
+			Svipe::AvatarSync::OnProfileSeen(user);
 		}
 		_session->storage().add(Storage::UserPhotosAddSlice(
 			peerToUser(user->id),
