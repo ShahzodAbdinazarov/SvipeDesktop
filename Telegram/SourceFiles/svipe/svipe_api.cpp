@@ -74,4 +74,8 @@ void Post(
 		std::move(done));
 }
 
+void Delete(const QString &path, const QString &token, Done done) {
+	Finish(Manager().deleteResource(Request(path, token)), std::move(done));
+}
+
 } // namespace Svipe::Api

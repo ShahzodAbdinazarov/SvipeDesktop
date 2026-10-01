@@ -46,7 +46,7 @@ using MessageArchive::Kind;
 		TimeId newDate,
 		bool keepOut) {
 	using Flag = MTPDmessage::Flag;
-	const auto removeFlags = (keepOut ? Flag() : Flag::f_out)
+	const auto removeFlags = Flag::f_out
 		| Flag::f_post
 		| Flag::f_saved_peer_id
 		| Flag::f_reply_to
@@ -61,8 +61,12 @@ using MessageArchive::Kind;
 		| Flag::f_report_delivery_until_date
 		| Flag::f_suggested_post
 		| Flag::f_summary_from_language;
+	// A synced copy of my message was uploaded by the other side, where it was incoming, so the side
+	// is set from who wrote it, not from the stored flag.
+	const auto flags = (data.vflags().v & ~removeFlags)
+		| (keepOut ? Flag::f_out : Flag());
 	return MTP_message(
-		MTP_flags(data.vflags().v & ~removeFlags),
+		MTP_flags(flags),
 		data.vid(),
 		data.vfrom_id() ? *data.vfrom_id() : MTPPeer(),
 		MTPint(), // from_boosts_applied
@@ -254,15 +258,18 @@ void RecentActionsWidget::rebuild() {
 	const auto privateChat = peer->isUser();
 
 	auto events = std::vector<Event>();
-	auto chains = base::flat_map<MsgId, std::vector<MTPMessage>>();
-	auto deletedById = base::flat_map<MsgId, MTPMessage>();
+	// A synced entry carries the other side's message id, so its chain is kept apart from the local
+	// ones and never ends at one of my live messages that happens to share the number.
+	using ChainKey = std::pair<bool, MsgId>; // (synced, message id)
+	auto chains = base::flat_map<ChainKey, std::vector<MTPMessage>>();
+	auto deletedById = base::flat_map<ChainKey, MTPMessage>();
 	for (const auto &entry : MessageArchive::Load(session, peer->id)) {
 		const auto parsed = MessageArchive::Parse(entry.message);
 		if (!parsed) {
 			continue;
 		}
 		const auto &data = parsed->c_message();
-		const auto id = MsgId(data.vid().v);
+		const auto id = ChainKey(entry.id.bare == 0, MsgId(data.vid().v));
 		if (entry.kind == Kind::Deleted) {
 			deletedById.emplace(id, *parsed);
 			events.push_back({
@@ -283,7 +290,10 @@ void RecentActionsWidget::rebuild() {
 		ranges::stable_sort(chain, ranges::less(), [](const MTPMessage &m) {
 			return m.c_message().vedit_date().value_or_empty();
 		});
-		if (const auto item = session->data().message(peer->id, id)) {
+		const auto item = id.first
+			? nullptr
+			: session->data().message(peer->id, id.second);
+		if (item) {
 			if (const auto live = MessageArchive::Parse(
 					MessageArchive::LiveBytes(item))) {
 				chain.push_back(*live);

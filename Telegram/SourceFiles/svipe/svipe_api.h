@@ -25,5 +25,6 @@ void Post(
 	const QJsonObject &body,
 	const QString &token,
 	Done done);
+void Delete(const QString &path, const QString &token, Done done);
 
 } // namespace Svipe::Api
