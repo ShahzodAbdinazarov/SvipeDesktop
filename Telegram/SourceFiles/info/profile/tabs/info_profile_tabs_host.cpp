@@ -42,6 +42,9 @@ base::options::toggle ProfileMediaTabs({
 	.name = "Show shared media as tabs in the profile.",
 	.description = "Replace the shared media buttons in profiles with "
 		"a strip of tabs holding the media lists inline. Work in progress.",
+	// Svipe: on by default — the profile is a strip of tabs on Android, and "Profile Images" is one
+	// of them. Still switchable in Settings > Advanced > Experimental.
+	.defaultValue = true,
 });
 
 } // namespace
