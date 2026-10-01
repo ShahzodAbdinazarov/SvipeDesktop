@@ -15,6 +15,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "history/view/history_view_top_bar_widget.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "svipe/svipe_deleted_in_chat.h"
 #include "svipe/svipe_message_archive.h"
 #include "svipe/svipe_strings.h"
 #include "ui/chat/chat_style.h"
@@ -22,6 +23,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "ui/painter.h"
 #include "ui/text/text_utilities.h"
 #include "ui/ui_utility.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/elastic_scroll.h"
 #include "ui/widgets/shadow.h"
 #include "window/window_adaptive.h"
@@ -30,6 +32,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "styles/style_menu_icons.h"
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_settings.h"
 #include "styles/style_window.h"
 
 namespace Svipe {
@@ -199,6 +202,21 @@ RecentActionsWidget::RecentActionsWidget(
 	_topBar->resizeToWidth(width());
 	_topBar->show();
 	_topBar->setCustomTitle(tr::lng_manage_peer_recent_actions(tr::now));
+
+	const auto session = &_history->session();
+	const auto peerId = _history->peer->id;
+	_showInChat = std::make_unique<Ui::SettingsButton>(
+		this,
+		TrValue(Str::ShowInChat),
+		st::settingsButtonNoIcon);
+	_showInChat->toggleOn(DeletedInChat::EnabledValue(session, peerId));
+	_showInChat->toggledChanges(
+	) | rpl::filter([=](bool enabled) {
+		return enabled != DeletedInChat::Enabled(session, peerId);
+	}) | rpl::on_next([=](bool enabled) {
+		DeletedInChat::SetEnabled(_history, enabled);
+	}, _showInChat->lifetime());
+	_showInChat->show();
 
 	_topBarShadow->raise();
 	controller->adaptive().value(
@@ -472,7 +490,9 @@ void RecentActionsWidget::updateControlsGeometry() {
 	_topBar->resizeToWidth(contentWidth);
 	_topBarShadow->resize(contentWidth, st::lineWidth);
 
-	const auto top = _topBar->height();
+	_showInChat->resizeToWidth(contentWidth);
+	_showInChat->move(0, _topBar->height());
+	const auto top = _topBar->height() + _showInChat->height();
 	const auto scrollSize = QSize(contentWidth, height() - top);
 	if (_scroll->size() != scrollSize) {
 		_skipScrollEvent = true;
@@ -493,7 +513,7 @@ void RecentActionsWidget::updateControlsGeometry() {
 void RecentActionsWidget::updateAdaptiveLayout() {
 	_topBarShadow->moveToLeft(
 		controller()->adaptive().isOneColumn() ? 0 : st::lineWidth,
-		_topBar->height());
+		_topBar->height() + (_showInChat ? _showInChat->height() : 0));
 }
 
 void RecentActionsWidget::paintEvent(QPaintEvent *e) {
@@ -503,7 +523,7 @@ void RecentActionsWidget::paintEvent(QPaintEvent *e) {
 	} else if (controller()->contentOverlapped(this, e)) {
 		return;
 	}
-	const auto aboveHeight = _topBar->height();
+	const auto aboveHeight = _topBar->height() + _showInChat->height();
 	const auto bg = e->rect().intersected(
 		QRect(0, aboveHeight, width(), height() - aboveHeight));
 	SectionWidget::PaintBackground(controller(), _theme.get(), this, bg);

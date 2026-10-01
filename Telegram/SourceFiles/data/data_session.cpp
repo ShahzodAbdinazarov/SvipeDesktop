@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 
 #include "svipe/svipe_message_archive.h"
+#include "svipe/svipe_deleted_in_chat.h"
 
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
@@ -3368,6 +3369,9 @@ void Session::processMessagesDeleted(
 	}
 	if (!toDestroy.empty()) {
 		Svipe::MessageArchive::CaptureDeleted(toDestroy);
+		toDestroy = Svipe::DeletedInChat::KeepOrDestroy(std::move(toDestroy));
+	}
+	if (!toDestroy.empty()) {
 		notifyItemsAboutToBeDestroyed(toDestroy);
 		for (const auto &item : toDestroy) {
 			item->destroy();
@@ -3392,6 +3396,9 @@ void Session::processNonChannelMessagesDeleted(const QVector<MTPint> &data) {
 	}
 	if (!toDestroy.empty()) {
 		Svipe::MessageArchive::CaptureDeleted(toDestroy);
+		toDestroy = Svipe::DeletedInChat::KeepOrDestroy(std::move(toDestroy));
+	}
+	if (!toDestroy.empty()) {
 		notifyItemsAboutToBeDestroyed(toDestroy);
 		for (const auto &item : toDestroy) {
 			item->destroy();

@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_widget.h"
 
 #include "svipe/svipe_message_sync.h"
+#include "svipe/svipe_deleted_in_chat.h"
 
 #include "api/api_compose_with_ai.h"
 #include "api/api_editing.h"
@@ -3546,6 +3547,7 @@ void HistoryWidget::setHistory(History *history) {
 		_migrated = _history ? _history->migrateFrom() : nullptr;
 		registerDraftSource();
 		Svipe::MessageSync::OnChatOpened(history);
+		Svipe::DeletedInChat::Restore(history);
 		if (_history) {
 			setupPreview();
 			trackThreadFieldVisibility();

@@ -19,6 +19,7 @@ class History;
 namespace Ui {
 class ElasticScroll;
 class PlainShadow;
+class SettingsButton;
 } // namespace Ui
 
 namespace HistoryView {
@@ -175,6 +176,8 @@ private:
 	QPointer<HistoryView::ListWidget> _inner;
 	object_ptr<HistoryView::TopBarWidget> _topBar;
 	object_ptr<Ui::PlainShadow> _topBarShadow;
+	// Android's "Show in chat" switch at the top of the screen.
+	std::unique_ptr<Ui::SettingsButton> _showInChat;
 	bool _skipScrollEvent = false;
 	std::unique_ptr<Ui::ElasticScroll> _scroll;
 	HistoryView::CornerButtons _cornerButtons;

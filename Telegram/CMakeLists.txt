@@ -1975,6 +1975,8 @@ PRIVATE
     svipe/svipe_message_archive.h
     svipe/svipe_recent_actions_section.cpp
     svipe/svipe_recent_actions_section.h
+    svipe/svipe_deleted_in_chat.cpp
+    svipe/svipe_deleted_in_chat.h
     svipe/svipe_message_sync.cpp
     svipe/svipe_message_sync.h
     svipe/svipe_settings_sync.cpp

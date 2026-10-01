@@ -189,6 +189,14 @@ Translations Lookup(Str key) {
 		"Not set",
 		"Tanlanmagan",
 		"Не выбрано" };
+	case Str::DeletedLabel: return {
+		"Deleted",
+		"O'chirilgan",
+		"Удалено" };
+	case Str::ShowInChat: return {
+		"Show in chat",
+		"Chatda ko'rsatish",
+		"Показывать в чате" };
 	case Str::RecentActionsEmpty: return {
 		"No deleted or edited messages here yet",
 		"Bu yerda hali o'chgan yoki tahrirlangan xabar yo'q",

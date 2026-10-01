@@ -47,6 +47,8 @@ public:
 			EditedPrimary  = 0x800,
 			Ephemeral      = 0x1000,
 			Updated        = 0x2000,
+			SvipeDeleted   = 0x4000, // Svipe: a deleted message shown in chat
+
 			//Unread, // We don't want to pass and update it in Date for now.
 		};
 		friend inline constexpr bool is_flag_type(Flag) { return true; };

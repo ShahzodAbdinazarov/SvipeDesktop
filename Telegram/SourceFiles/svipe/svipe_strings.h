@@ -54,6 +54,8 @@ enum class Str {
 	MsgSyncRemind,
 	MsgSyncRemindInfo,
 	MsgSyncNotSet,
+	DeletedLabel,
+	ShowInChat,
 	RecentActionsEmpty,
 	YouDeletedMessage,
 	YouEditedMessage,

@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/history_view_bottom_info.h"
 
+#include "svipe/svipe_deleted_in_chat.h"
+
 #include "ui/chat/message_bubble.h"
 #include "ui/chat/chat_style.h"
 #include "ui/effects/reaction_fly_animation.h"
@@ -301,6 +303,14 @@ void BottomInfo::paint(
 		position.y(),
 		authorEditedWidth,
 		outerWidth);
+	if (_data.flags & Data::Flag::SvipeDeleted) {
+		// Svipe: the red "Deleted" before the time, as on Android.
+		const auto label = Svipe::DeletedInChat::Label();
+		right -= st::msgDateFont->width(label + ' ');
+		p.setFont(st::msgDateFont);
+		p.setPen(st::attentionButtonFg);
+		p.drawText(right, position.y() + st::msgDateFont->ascent, label);
+	}
 
 	if (_data.flags & Data::Flag::Silent) {
 		const auto &icon = inverted
@@ -593,6 +603,9 @@ QSize BottomInfo::countOptimalSize() {
 		width += st::historySendStateSpace;
 	}
 	width += _authorEditedDate.maxWidth();
+	if (_data.flags & Data::Flag::SvipeDeleted) {
+		width += st::msgDateFont->width(Svipe::DeletedInChat::Label() + ' ');
+	}
 	if (!_views.isEmpty()) {
 		width += st::historyViewsSpace
 			+ _views.maxWidth()
@@ -697,6 +710,9 @@ BottomInfo::Data BottomInfoDataFromMessage(not_null<Message*> message) {
 	}
 	if (IsAnchoredEphemeral(item)) {
 		result.flags |= Flag::Updated;
+	}
+	if (Svipe::DeletedInChat::IsMarked(item)) {
+		result.flags |= Flag::SvipeDeleted;
 	}
 	if (const auto views = item->Get<HistoryMessageViews>()) {
 		if (views->views.count >= 0) {
