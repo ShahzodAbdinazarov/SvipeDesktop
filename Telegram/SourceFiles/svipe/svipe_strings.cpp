@@ -122,13 +122,13 @@ Translations Lookup(Str key) {
 		"Sinxronlanmasin",
 		"Не синхронизировать" };
 	case Str::MsgSyncModeInfo: return {
-		"\"With the other person\" keeps a one-to-one chat's deleted and edited messages for both of you — only if you both turn it on. \"Only my own devices\" backs up just the messages you sent, for yourself. Never applies to groups, channels or Secret Chats.",
-		"\"Suhbatdosh bilan\" — shaxsiy suhbatning o'chirilgan va tahrirlangan xabarlarini ikkovingiz uchun saqlaydi, faqat ikkalangiz ham yoqsangiz. \"Faqat mening qurilmalarim\" — faqat o'zingiz yuborgan xabarlarni o'zingiz uchun zaxiralaydi. Guruh, kanal yoki Maxfiy chatlarga hech qachon qo'llanmaydi.",
-		"«С собеседником» — хранит удалённые и изменённые сообщения личного чата для вас обоих, только если оба включите. «Только мои устройства» — резервирует лишь ваши сообщения, для вас. Никогда не применяется к группам, каналам и секретным чатам." };
+		"\"With the other person\" keeps a one-to-one chat's deleted and edited messages on all your devices and lets the other person see them too; you see theirs when they turn it on. \"Only my own devices\" keeps them on all your devices only. Never applies to groups, channels or Secret Chats.",
+		"\"Suhbatdosh bilan\" — shaxsiy suhbatning o'chirilgan va tahrirlangan xabarlarini barcha qurilmalaringizda saqlaydi va suhbatdoshingizga ham ko'rsatadi; uning xabarlarini u ham yoqsa ko'rasiz. \"Faqat mening qurilmalarim\" — faqat barcha qurilmalaringizda saqlaydi. Guruh, kanal yoki Maxfiy chatlarga hech qachon qo'llanmaydi.",
+		"«С собеседником» — хранит удалённые и изменённые сообщения личного чата на всех ваших устройствах и показывает их собеседнику; его сообщения вы увидите, когда включит он. «Только мои устройства» — хранит их только на всех ваших устройствах. Никогда не применяется к группам, каналам и секретным чатам." };
 	case Str::MsgSyncOffConfirm: return {
-		"If you turn sync off, the other person's deleted messages won't reach you either — just like hiding your last seen. Turn it off?",
-		"Sinxronni o'chirsangiz, suhbatdoshingizning o'chirgan xabarlari ham sizga kelmaydi — xuddi \"oxirgi ko'rilgan\"ni yashirgandek. O'chirilsinmi?",
-		"Если выключить синхронизацию, удалённые сообщения собеседника тоже не будут к вам приходить — как при скрытом «был(а) в сети». Выключить?" };
+		"If you turn sync off, the deleted and edited messages you have synced are removed from the server, your other devices stop receiving them and the other person can no longer see them. Turn it off?",
+		"Sinxronni o'chirsangiz, siz sinxronlagan o'chirilgan va tahrirlangan xabarlar serverdan o'chiriladi, boshqa qurilmalaringizga kelmaydi va suhbatdoshingiz ularni ko'ra olmaydi. O'chirilsinmi?",
+		"Если выключить синхронизацию, синхронизированные вами удалённые и изменённые сообщения будут удалены с сервера, перестанут приходить на другие ваши устройства и собеседник больше не сможет их видеть. Выключить?" };
 	case Str::MsgSyncDelete: return {
 		"Delete everything from the server",
 		"Serverdan hammasini o'chirish",
@@ -154,9 +154,9 @@ Translations Lookup(Str key) {
 		"O'chirilgan va tahrirlangan xabarlar sinxronlansinmi?",
 		"Синхронизировать удалённые и изменённые сообщения?" };
 	case Str::MsgSyncPromptMessage: return {
-		"**Svipe** can keep the messages you delete or edit so you don't lose them. **Allow** — sync with the other person (only if you both allow) and across your own devices. **For me** — back up only your own messages. **Decline** — don't sync. You can change this any time in Settings.",
-		"**Svipe** o'chirgan yoki tahrirlagan xabarlaringizni saqlab, yo'qotmasligingizga yordam beradi. **Ruxsat** — suhbatdosh bilan (faqat ikkalangiz ham yoqsangiz) va o'z qurilmalaringiz aro sinxronlash. **O'zimga** — faqat o'z xabarlaringizni zaxiralash. **Rad etish** — sinxronlamaslik. Istalgan payt Sozlamalarda o'zgartirasiz.",
-		"**Svipe** может хранить сообщения, которые вы удаляете или редактируете, чтобы вы их не теряли. **Разрешить** — синхронизировать с собеседником (только если включат оба) и между вашими устройствами. **Мне** — резервировать только ваши сообщения. **Отклонить** — не синхронизировать. Это можно изменить в Настройках." };
+		"**Svipe** can keep the messages you delete or edit so you don't lose them. **Allow** — on all your devices and with the other person. **For me** — only on all your own devices. **Decline** — don't sync. You can change this any time in Settings.",
+		"**Svipe** o'chirgan yoki tahrirlagan xabarlaringizni saqlab, yo'qotmasligingizga yordam beradi. **Ruxsat** — barcha qurilmalaringizda va suhbatdosh bilan. **O'zimga** — faqat o'z qurilmalaringizda. **Rad etish** — sinxronlamaslik. Istalgan payt Sozlamalarda o'zgartirasiz.",
+		"**Svipe** может хранить сообщения, которые вы удаляете или редактируете, чтобы вы их не теряли. **Разрешить** — на всех ваших устройствах и с собеседником. **Мне** — только на ваших устройствах. **Отклонить** — не синхронизировать. Это можно изменить в Настройках." };
 	case Str::MsgSyncSnackbar: return {
 		"Sync deleted & edited messages?",
 		"O'chirilgan va tahrirlangan xabarlar sinxronlansinmi?",

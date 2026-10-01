@@ -186,8 +186,7 @@ void PutMode(
 
 void Fetch(
 		not_null<Main::Session*> session,
-		not_null<PeerData*> peer,
-		const QString &mode);
+		not_null<PeerData*> peer);
 
 void Commit(
 		not_null<Main::Session*> session,
@@ -202,14 +201,12 @@ void Commit(
 		return;
 	}
 	const auto &item = (*queue)[index];
-	auto body = QJsonObject{
+	const auto body = QJsonObject{
 		{ u"mode"_q, mode },
+		{ u"peer_tg_id"_q, double(DialogId(peer->id)) },
 		{ u"key"_q, item.key },
 		{ u"ciphertext_b64"_q, QString::fromLatin1(item.message.toBase64()) },
 	};
-	if (mode == kWithPartner) {
-		body.insert(u"peer_tg_id"_q, double(DialogId(peer->id)));
-	}
 	const auto key = item.key;
 	const auto message = item.message;
 	Api::Post(u"/v1/msg-sync/commit"_q, body, token, [=](
@@ -244,13 +241,11 @@ void Observe(
 				{ u"has_media"_q, item.hasMedia },
 			});
 		}
-		auto body = QJsonObject{
+		const auto body = QJsonObject{
 			{ u"mode"_q, mode },
+			{ u"peer_tg_id"_q, double(DialogId(peer->id)) },
 			{ u"items"_q, items },
 		};
-		if (mode == kWithPartner) {
-			body.insert(u"peer_tg_id"_q, double(DialogId(peer->id)));
-		}
 		Api::Post(u"/v1/msg-sync/observed"_q, body, token, [=](
 				QJsonObject result,
 				int code) {
@@ -304,9 +299,9 @@ void Upload(
 		const auto author = data.vfrom_id()
 			? DialogId(peerFromMTP(*data.vfrom_id()))
 			: int64(0);
-		if (!author
-			|| (mode == kSelfOnly && author != self)
-			|| (mode == kWithPartner && author != self && author != partner)) {
+		// My archive of the chat is mine whoever wrote the message; the mode only decides who else
+		// may read it (the server's partner_may_read).
+		if (!author || (author != self && author != partner)) {
 			continue;
 		}
 		const auto mediaId = MediaId(data);
@@ -337,8 +332,7 @@ void Upload(
 
 void Fetch(
 		not_null<Main::Session*> session,
-		not_null<PeerData*> peer,
-		const QString &mode) {
+		not_null<PeerData*> peer) {
 	auto &state = StateFor(session);
 	const auto now = crl::now();
 	const auto i = state.lastFetch.find(peer->id);
@@ -346,10 +340,9 @@ void Fetch(
 		return;
 	}
 	state.lastFetch[peer->id] = now;
-	const auto path = (mode == kWithPartner)
-		? (u"/v1/msg-sync/pair?peer_tg_id="_q
-			+ QString::number(DialogId(peer->id)))
-		: u"/v1/msg-sync/self"_q;
+	// My own archive of the chat (from my other devices) plus the partner's when they share it.
+	const auto path = u"/v1/msg-sync/chat?peer_tg_id="_q
+		+ QString::number(DialogId(peer->id));
 	Auth::EnsureToken(session, [=](QString token) {
 		if (token.isEmpty()) {
 			return;
@@ -428,7 +421,7 @@ void ApplyMode(
 	PutMode(session, mode, nullptr);
 	if (Granted(mode) && peer) {
 		Upload(session, peer, mode);
-		Fetch(session, peer, mode);
+		Fetch(session, peer);
 	}
 }
 
@@ -718,12 +711,12 @@ void OnChatOpened(not_null<History*> history) {
 	if (StateFor(session).serverDisabled || !IsSyncablePeer(session, peer)) {
 		return;
 	}
+	// Reading does not depend on my mode: the partner's archive reaches me when THEY share it.
+	Fetch(session, peer);
 	const auto mode = Mode(session);
-	if (!Granted(mode)) {
-		return;
+	if (Granted(mode)) {
+		Upload(session, peer, mode);
 	}
-	Upload(session, peer, mode);
-	Fetch(session, peer, mode);
 }
 
 void BuildSettings(::Settings::Builder::SectionBuilder &builder) {
