@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_histories.h"
 
+#include "svipe/svipe_message_archive.h"
+
 #include "api/api_text_entities.h"
 #include "data/business/data_shortcut_messages.h"
 #include "data/components/ephemeral_messages.h"
@@ -987,6 +989,8 @@ void Histories::deleteMessages(const MessageIdsList &ids, bool revoke) {
 			}
 			remove.push_back(item);
 			if (item->isRegular()) {
+				// Svipe: my own deletions are archived too, as on Android.
+				Svipe::MessageArchive::CaptureDeleted(item);
 				idsByPeer[history].push_back(MTP_int(itemId.msg));
 			}
 		}

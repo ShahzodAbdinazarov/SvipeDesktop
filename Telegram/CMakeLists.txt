@@ -1971,6 +1971,8 @@ PRIVATE
     svipe/svipe_message_types.h
     svipe/svipe_message_types_box.cpp
     svipe/svipe_message_types_box.h
+    svipe/svipe_message_archive.cpp
+    svipe/svipe_message_archive.h
     svipe/svipe_settings_sync.cpp
     svipe/svipe_settings_sync.h
     svipe/svipe_storage.cpp

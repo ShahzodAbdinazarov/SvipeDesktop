@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_session.h"
 
+#include "svipe/svipe_message_archive.h"
+
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
 #include "main/main_app_config.h"
@@ -3075,6 +3077,7 @@ void Session::updateEditedMessage(const MTPMessage &data) {
 		Reactions::CheckUnknownForUnread(this, data);
 		return;
 	}
+	Svipe::MessageArchive::CaptureEdited(existing, data);
 	if (existing->isLocalUpdateMedia() && data.type() == mtpc_message) {
 		updateExistingMessage(data.c_message());
 	}
@@ -3095,6 +3098,9 @@ void Session::processMessages(
 		if (message.type() == mtpc_message) {
 			const auto &data = message.c_message();
 			// new message, index my forwarded messages to links overview
+			if (type == NewMessageType::Unread) {
+				Svipe::MessageArchive::RememberExisting(_session, message);
+			}
 			if ((type == NewMessageType::Unread)
 				&& updateExistingMessage(data)) {
 				continue;
@@ -3361,6 +3367,7 @@ void Session::processMessagesDeleted(
 		}
 	}
 	if (!toDestroy.empty()) {
+		Svipe::MessageArchive::CaptureDeleted(toDestroy);
 		notifyItemsAboutToBeDestroyed(toDestroy);
 		for (const auto &item : toDestroy) {
 			item->destroy();
@@ -3384,6 +3391,7 @@ void Session::processNonChannelMessagesDeleted(const QVector<MTPint> &data) {
 		}
 	}
 	if (!toDestroy.empty()) {
+		Svipe::MessageArchive::CaptureDeleted(toDestroy);
 		notifyItemsAboutToBeDestroyed(toDestroy);
 		for (const auto &item : toDestroy) {
 			item->destroy();

@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/history.h"
 
+#include "svipe/svipe_message_archive.h"
+
 #include "history/view/history_view_element.h"
 #include "history/view/history_view_item_preview.h"
 #include "history/view/history_view_translate_tracker.h"
@@ -581,6 +583,7 @@ not_null<HistoryItem*> History::createItem(
 		bool newMessage) {
 	owner().fillMessagePeers(peer->id, message);
 	if (const auto result = owner().message(peer, id)) {
+		Svipe::MessageArchive::CaptureEdited(result, message);
 		if (detachExistingItem) {
 			result->removeMainView(Data::ViewRemovalReason::Detached);
 		}
@@ -592,6 +595,7 @@ not_null<HistoryItem*> History::createItem(
 	const auto result = message.match([&](const auto &data) {
 		return makeMessage(id, data, localFlags);
 	});
+	Svipe::MessageArchive::Remember(this, id, message);
 	if (newMessage && result->out() && result->isRegular()) {
 		session().topPeers().increment(peer, result->date());
 		if (result->starsPaid()) {
