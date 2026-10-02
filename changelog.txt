@@ -1,3 +1,7 @@
+7.2.19 (02.10.26)
+
+- Svipe Desktop 1.0.7: Number history — the accounts that sat on a person's number before them and the numbers they used before, as profile tabs; shared through Svipe, controlled in Settings > Privacy.
+
 7.2.18 (01.10.26)
 
 - Svipe Desktop 1.0.6: Profile Images — a person's current profile photos and the ones kept after they deleted them, shared through the Svipe archive; the profile opens as tabs, as on Android.
