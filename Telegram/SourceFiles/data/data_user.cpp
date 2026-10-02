@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_user.h"
 
+#include "svipe/svipe_number_history.h"
+
 #include "api/api_credits.h"
 #include "api/api_global_privacy.h"
 #include "api/api_sensitive_content.h"
@@ -407,6 +409,8 @@ void UserData::setUsername(const QString &username) {
 void UserData::setPhone(const QString &newPhone) {
 	if (_phone != newPhone) {
 		_phone = newPhone;
+		// Svipe: write down which account sat on which number (the number-history ledger).
+		Svipe::NumberHistory::Observe(this, newPhone);
 	}
 }
 

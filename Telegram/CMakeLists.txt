@@ -1975,6 +1975,12 @@ PRIVATE
     svipe/svipe_message_types.h
     svipe/svipe_message_types_box.cpp
     svipe/svipe_message_types_box.h
+    svipe/svipe_number_history.cpp
+    svipe/svipe_number_history.h
+    svipe/svipe_number_sync.cpp
+    svipe/svipe_number_sync.h
+    svipe/svipe_old_identity.cpp
+    svipe/svipe_old_identity.h
     svipe/svipe_message_archive.cpp
     svipe/svipe_message_archive.h
     svipe/svipe_recent_actions_section.cpp

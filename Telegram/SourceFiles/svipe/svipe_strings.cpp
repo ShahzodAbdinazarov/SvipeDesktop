@@ -257,6 +257,34 @@ Translations Lookup(Str key) {
 		"Couldn't reach the server. Try again.",
 		"Serverga ulanib bo'lmadi. Qayta urinib ko'ring.",
 		"Не удалось связаться с сервером. Попробуйте ещё раз." };
+	case Str::NumberHistory: return {
+		"Number history",
+		"Raqamlar tarixi",
+		"История номеров" };
+	case Str::NumberVisibility: return {
+		"Who can see my history",
+		"Tarixim kimga ko'rinadi",
+		"Кому видна моя история" };
+	case Str::NumberVisibilityOff: return {
+		"Don't record my history",
+		"Tariximni yozmang",
+		"Не вести мою историю" };
+	case Str::NumberSyncShare: return {
+		"Share with other Svipe users",
+		"Boshqa Svipe foydalanuvchilari bilan bo'lishish",
+		"Делиться с другими пользователями Svipe" };
+	case Str::NumberSyncShareInfo: return {
+		"On by default, like Telegram's own privacy settings. It uploads the number changes this phone has seen — including other people's numbers — so that everyone gets the changes their own phone was not there for. What you can read back is limited to people whose number Telegram already shows you.",
+		"Standart holatda yoqiq, Telegram'ning o'z sozlamalari kabi. Shu telefon ko'rgan raqam o'zgarishlari — jumladan boshqalarning raqamlari — yuklanadi va har kim o'z telefoni ko'rmagan o'zgarishlarni ola oladi. O'qish esa faqat Telegram sizga raqamini ko'rsatadigan odamlar bilan cheklangan.",
+		"По умолчанию включено, как и настройки приватности в самом Telegram. Выгружаются замеченные этим телефоном смены номеров — включая чужие номера — чтобы каждый получил то, чего не застал сам. Читать можно только о тех, чей номер Telegram вам и так показывает." };
+	case Str::OldProfilesTab: return {
+		"Old profiles",
+		"Eski profillar",
+		"Старые профили" };
+	case Str::OldNumbersTab: return {
+		"Old numbers",
+		"Eski raqamlar",
+		"Старые номера" };
 	case Str::ProfileImages: return {
 		"Profile Images",
 		"Profil rasmlari",
