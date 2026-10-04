@@ -91,6 +91,9 @@ enum class Str {
 [[nodiscard]] QString ProfileImagesCount(int count);
 [[nodiscard]] QString ProfileImagesButton(int count);
 
+// "Too many attempts" with the wait Telegram named in FLOOD_WAIT_N, rounded up to one unit.
+[[nodiscard]] QString FloodWaitText(const QString &errorType);
+
 [[nodiscard]] QString Tr(Str key);
 [[nodiscard]] rpl::producer<QString> TrValue(Str key);
 

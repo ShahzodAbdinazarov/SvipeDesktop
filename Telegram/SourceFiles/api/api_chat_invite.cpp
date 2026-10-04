@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_chat_invite.h"
 
 #include "apiwrap.h"
+#include "svipe/svipe_strings.h"
 #include "api/api_credits.h"
 #include "boxes/premium_limits_box.h"
 #include "core/application.h"
@@ -185,11 +186,14 @@ void SubmitChatInvite(
 					: tr::lng_group_request_sent_channel(tr::now);
 			} else if (type == u"USERS_TOO_MUCH"_q) {
 				return tr::lng_group_invite_no_room(tr::now);
+			} else if (MTP::IsFloodError(error)) {
+				// Svipe: Telegram's join limit; silently retried, the box looked dead.
+				return Svipe::FloodWaitText(type);
 			} else {
 				return tr::lng_group_invite_bad_link(tr::now);
 			}
 		}(), ApiWrap::kJoinErrorDuration);
-	}).send();
+	}).handleFloodErrors().send();
 }
 
 void ConfirmSubscriptionBox(

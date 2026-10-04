@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "apiwrap.h"
+#include "svipe/svipe_strings.h"
 
 #include "api/api_authorizations.h"
 #include "api/api_attached_stickers.h"
@@ -1930,6 +1931,9 @@ void ApiWrap::joinChannel(not_null<ChannelData*> channel) {
 							: tr::lng_channel_not_accessible(tr::now);
 					} else if (type == u"USERS_TOO_MUCH"_q) {
 						return tr::lng_group_full(tr::now);
+					} else if (MTP::IsFloodError(error)) {
+						// Svipe: Telegram's join limit; silently retried, the button looked dead.
+						return Svipe::FloodWaitText(type);
 					}
 					return QString();
 				}();
@@ -1938,7 +1942,7 @@ void ApiWrap::joinChannel(not_null<ChannelData*> channel) {
 				}
 			}
 			_channelAmInRequests.remove(channel);
-		}).send();
+		}).handleFloodErrors().send();
 
 		_channelAmInRequests.emplace(channel, requestId);
 

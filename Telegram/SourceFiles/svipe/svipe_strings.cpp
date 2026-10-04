@@ -4,6 +4,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "svipe/svipe_strings.h"
 
 #include "lang/lang_instance.h"
+#include "lang/lang_keys.h"
 
 namespace Svipe {
 namespace {
@@ -388,6 +389,37 @@ QString ProfileImagesButton(int count) {
 	case Language::English: break;
 	}
 	return n + (count == 1 ? u" profile image"_q : u" profile images"_q);
+}
+
+QString FloodWaitText(const QString &errorType) {
+	auto digits = qsizetype(0);
+	while (digits < errorType.size()
+		&& errorType[errorType.size() - 1 - digits].isDigit()) {
+		++digits;
+	}
+	const auto seconds = errorType.right(digits).toLongLong();
+	if (seconds <= 0) {
+		return tr::lng_flood_error(tr::now);
+	}
+	const auto up = [&](int64 unit) { return int((seconds + unit - 1) / unit); };
+	// Telegram's own plurals, so the count reads right in every language.
+	const auto wait = (seconds < 60)
+		? tr::lng_seconds(tr::now, lt_count, int(seconds))
+		: (seconds < 3600)
+		? tr::lng_minutes(tr::now, lt_count, up(60))
+		: (seconds < 86400)
+		? tr::lng_hours(tr::now, lt_count, up(3600))
+		: tr::lng_days(tr::now, lt_count, up(86400));
+	switch (Current()) {
+	case Language::Uzbek:
+		return u"Urinishlar juda ko'p. Keyingi urinishgacha: "_q + wait + '.';
+	case Language::Russian:
+		return QString::fromUtf8("Слишком много попыток. До следующей попытки: ")
+			+ wait
+			+ '.';
+	case Language::English: break;
+	}
+	return u"Too many attempts. Try again in "_q + wait + '.';
 }
 
 rpl::producer<QString> TrValue(Str key) {
