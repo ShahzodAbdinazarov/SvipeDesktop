@@ -1,3 +1,7 @@
+7.2.22 (07.10.26)
+
+- Svipe Desktop 1.0.10: chats search history is shared with Svipe to improve search, as on Android: what you type, and only public channels you open by name.
+
 7.2.21 (07.10.26)
 
 - Svipe Desktop 1.0.9: notification rules you set on your phone take effect here within two minutes, without a restart.
