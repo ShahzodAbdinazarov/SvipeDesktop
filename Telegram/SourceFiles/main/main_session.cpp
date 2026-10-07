@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "svipe/svipe_message_sync.h"
 #include "svipe/svipe_deleted_in_chat.h"
 #include "svipe/svipe_settings_sync.h"
+#include "base/timer_rpl.h"
 
 #include "apiwrap.h"
 #include "api/api_peer_colors.h"
@@ -283,6 +284,13 @@ Session::Session(
 	// Delayed so it does not compete with the requests a session makes as it starts.
 	base::call_delayed(5000, this, [=] {
 		Svipe::SettingsSync::Pull(this);
+		// A rule set on the phone while this app runs must hold here too, not after a restart:
+		// one small GET every two minutes.
+		base::timer_each(
+			2 * 60 * crl::time(1000)
+		) | rpl::on_next([=] {
+			Svipe::SettingsSync::Pull(this);
+		}, _lifetime);
 		Svipe::BotMute::Watch(this);
 		Svipe::MessageSync::Start(this);
 		Svipe::DeletedInChat::Start(this);
