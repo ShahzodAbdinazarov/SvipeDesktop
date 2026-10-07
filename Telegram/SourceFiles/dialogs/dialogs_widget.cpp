@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "dialogs/dialogs_widget.h"
 
+#include "svipe/svipe_search_log.h"
+
 #include "base/call_delayed.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "base/options.h"
@@ -986,6 +988,10 @@ void Widget::chosenRow(const ChosenRow &row) {
 	} else if (!_searchState.query.isEmpty()) {
 		if (const auto history = row.key.history()) {
 			session().recentPeers().bump(history->peer);
+			if (!_searchState.inChat) {
+				// Svipe: what the search led to — only a doorway, never a message's text.
+				Svipe::SearchLog::Click(history->peer);
+			}
 		}
 	}
 
@@ -4088,7 +4094,13 @@ void Widget::closeChildList(anim::type animated) {
 bool Widget::applySearchState(SearchState state) {
 	if (_searchState == state) {
 		return true;
-	} else if (_childList) {
+	}
+	// Svipe: search history of the chats search (Android: source "chats"). Searching inside one chat
+	// is about its messages and is never recorded — it only ends the visit.
+	Svipe::SearchLog::Query(
+		&session(),
+		state.inChat ? QString() : state.query);
+	if (_childList) {
 		if (_childList->applySearchState(state)) {
 			return true;
 		}
