@@ -683,7 +683,7 @@ void MainMenu::setupMenu() {
 				_menu,
 				Svipe::TrValue(Svipe::Str::ReelsTitle),
 				st::mainMenuButton,
-				{ &st::menuIconVideoChat })
+				{ &st::menuIconSvipeClips })
 		)->setClickedCallback([=] {
 			Svipe::Reels::Open(controller);
 		});
