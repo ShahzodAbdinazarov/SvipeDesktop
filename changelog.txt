@@ -1,3 +1,7 @@
+7.2.23 (08.10.26)
+
+- Svipe Desktop 1.0.11: Clips — the short-video feed from the Android app, on the left sidebar above All chats: like, comments, share, save, subscribe; the Telegram notifications chat shows its own photo.
+
 7.2.22 (07.10.26)
 
 - Svipe Desktop 1.0.10: chats search history is shared with Svipe to improve search, as on Android: what you type, and only public channels you open by name.
