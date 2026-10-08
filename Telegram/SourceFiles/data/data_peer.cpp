@@ -441,9 +441,11 @@ QImage *PeerData::userpicCloudImage(Ui::PeerUserpicView &view) const {
 		_userpicEmpty = nullptr;
 		return image;
 	} else if (isNotificationsUser()) {
-		static auto result = Window::LogoNoMargin().scaledToWidth(
-			kUserpicSize,
-			Qt::SmoothTransformation);
+		// Svipe: the app logo is ours, but this chat is Telegram's own — until its cloud photo
+		// arrives, stand in with Telegram's logo, not Svipe's.
+		static auto result = QImage(
+			u":/gui/art/telegram_logo_256_no_margin.png"_q
+		).scaledToWidth(kUserpicSize, Qt::SmoothTransformation);
 		return &result;
 	}
 	return nullptr;
