@@ -311,6 +311,12 @@ Translations Lookup(Str key) {
 		"This post could not be loaded. Try again in a moment.",
 		"Bu post yuklanmadi. Birozdan keyin qayta urining.",
 		"Не удалось загрузить эту запись. Попробуйте через мгновение." };
+	// Android's MainTabsVideo and SvipeRelatedVideos, verbatim.
+	case Str::VideoTitle: return { "Video", "Video", "Видео" };
+	case Str::RelatedVideos: return {
+		"Related videos",
+		"O'xshash videolar",
+		"Похожие видео" };
 	case Str::AvatarSettingsFailed: return {
 		"Couldn't reach the server. Try again.",
 		"Serverga ulanib bo'lmadi. Qayta urinib ko'ring.",

@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_filters_menu.h"
 
 #include "svipe/svipe_reels_section.h"
+#include "svipe/svipe_video_section.h"
 #include "svipe/svipe_strings.h"
 
 #include "menu/menu_mark_as_read.h"
@@ -453,6 +454,7 @@ void FiltersMenu::setupList() {
 		-1,
 		{ TextWithEntities{ tr::lng_filters_setup(tr::now) } },
 		Ui::FilterIcon::Edit);
+	_setup->setVisible(!_svipeClipsShown); // Svipe: no Edit beside Clips / Video
 	_reorder = std::make_unique<Ui::VerticalLayoutReorder>(_list, &_scroll);
 
 	_reorder->updates(
@@ -480,38 +482,59 @@ void FiltersMenu::setupList() {
 // Svipe: Clips sit above All chats. While Clips are open only All chats stays beside them, and
 // pressing it closes Clips and brings the other folders back.
 void FiltersMenu::setupSvipeClips() {
-	auto clips = object_ptr<Ui::SideBarButton>(
-		_container,
-		TextWithEntities{ Svipe::Tr(Svipe::Str::ReelsTitle) },
-		buttonStyle());
-	const auto mode = tabsMode();
-	clips->setShowIcon(mode != Ui::ChatsFiltersTabsMode::TextOnly);
-	clips->setShowText(mode != Ui::ChatsFiltersTabsMode::IconsOnly);
-	clips->setIconOverride(
+	const auto make = [&](Svipe::Str title, const style::icon *icon, const style::icon *active, int index) {
+		auto button = object_ptr<Ui::SideBarButton>(
+			_container,
+			TextWithEntities{ Svipe::Tr(title) },
+			buttonStyle());
+		const auto mode = tabsMode();
+		button->setShowIcon(mode != Ui::ChatsFiltersTabsMode::TextOnly);
+		button->setShowText(mode != Ui::ChatsFiltersTabsMode::IconsOnly);
+		button->setIconOverride(icon, active);
+		return base::unique_qptr<Ui::SideBarButton>(
+			_container->insert(index, std::move(button)));
+	};
+	_svipeClips = make(
+		Svipe::Str::ReelsTitle,
 		&st::foldersSvipeClips,
-		&st::foldersSvipeClipsActive);
-	_svipeClips = base::unique_qptr<Ui::SideBarButton>(
-		_container->insert(0, std::move(clips)));
+		&st::foldersSvipeClipsActive,
+		0);
+	_svipeVideo = make(
+		Svipe::Str::VideoTitle,
+		&st::foldersSvipeVideo,
+		&st::foldersSvipeVideoActive,
+		1);
 	_svipeClips->setClickedCallback([=] {
-		if (!_svipeClipsShown) {
+		if (!Svipe::Reels::Shown(_session)) {
 			Svipe::Reels::Open(_session);
 		}
 	});
+	_svipeVideo->setClickedCallback([=] {
+		if (!Svipe::Video::Shown(_session)) {
+			Svipe::Video::Open(_session);
+		}
+	});
 	// Built from inside refresh(): only later changes may refresh again.
-	_svipeClipsShown = Svipe::Reels::Shown(_session);
-	_svipeClips->setActive(_svipeClipsShown);
-	Svipe::Reels::ShownValue(
-		_session
-	) | rpl::skip(1) | rpl::on_next([=](bool shown) {
-		_svipeClipsShown = shown;
-		_svipeClips->setActive(shown);
+	const auto apply = [=](bool clips, bool video, bool rebuild) {
+		_svipeClipsShown = clips || video;
+		_svipeClips->setActive(clips);
+		_svipeVideo->setActive(video);
 		if (_setup) {
-			_setup->setVisible(!shown);
+			_setup->setVisible(!_svipeClipsShown);
 		}
 		if (_favorite) {
-			_favorite->setVisible(!shown);
+			_favorite->setVisible(!_svipeClipsShown);
 		}
-		refresh();
+		if (rebuild) {
+			refresh();
+		}
+	};
+	apply(Svipe::Reels::Shown(_session), Svipe::Video::Shown(_session), false);
+	rpl::combine(
+		Svipe::Reels::ShownValue(_session),
+		Svipe::Video::ShownValue(_session)
+	) | rpl::skip(1) | rpl::on_next([=](bool clips, bool video) {
+		apply(clips, video, true);
 	}, _svipeClips->lifetime());
 }
 
@@ -742,6 +765,7 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		} else if (id >= 0) {
 			if (_svipeClipsShown) {
 				Svipe::Reels::Close(_session);
+				Svipe::Video::Close(_session);
 			}
 			_session->setActiveChatsFilter(id);
 		} else {

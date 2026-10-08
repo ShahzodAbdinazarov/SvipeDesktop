@@ -39,6 +39,7 @@ struct Item {
 	QString recId;
 	crl::time recAt = 0;
 	int feedPosition = 0;
+	QByteArray inlineThumb; // Telegram's stripped blur from the list JSON (thumb_b64), if any
 
 	// Resolved.
 	DocumentData *document = nullptr;
@@ -75,17 +76,24 @@ public:
 
 	void loadMore();
 
-	// `urgent` is the clip on screen: the only one allowed to resolve a username.
+	// `urgent` is the clip on screen: it resolves a username at the front of the lane. `background`
+	// lets a list card (the Video tab, as on Android) use the lane too, behind everything else;
+	// the Clips read-ahead passes neither and never spends a resolve.
 	void resolve(
 		const std::shared_ptr<Item> &item,
 		bool urgent,
-		Fn<void()> done);
+		Fn<void()> done,
+		bool background = false);
 
 	// The real channel message, for anything that acts on it (like, comments, subscribe, save,
 	// report). Android's requireMessage: may spend a resolve, since the user asked for it.
 	void requireMessage(
 		const std::shared_ptr<Item> &item,
 		Fn<void(HistoryItem*)> done);
+
+	// The real channel message for an item that has its video from a link preview, but only when the
+	// channel is already addressable — never spends a resolve. For list cards: caption, views, date.
+	void upgradeToMessage(const std::shared_ptr<Item> &item, Fn<void()> done);
 
 	// Android's blockChannel: its clips leave the feed now and never come back.
 	void block(uint64 channelId);
@@ -103,6 +111,9 @@ public:
 	// SvipeWatchEvent.classify.
 	[[nodiscard]] static QString Classify(crl::time watched, crl::time duration);
 
+	// The resolve/event/save machinery is shared with the Video tab, whose lists hold Items too.
+	[[nodiscard]] static std::shared_ptr<Item> ParseItem(const QJsonObject &o);
+
 private:
 	struct UsernameRequest {
 		std::shared_ptr<Item> item;
@@ -118,7 +129,10 @@ private:
 		const std::shared_ptr<Item> &item,
 		Fn<void(bool)> done,
 		bool retried = false);
-	void tryUsername(const std::shared_ptr<Item> &item, Fn<void(bool)> done);
+	void tryUsername(
+		const std::shared_ptr<Item> &item,
+		Fn<void(bool)> done,
+		bool back = false);
 	void pumpUsernames();
 	void finish(const std::shared_ptr<Item> &item, bool ok);
 	bool takeMessage(const std::shared_ptr<Item> &item, HistoryItem *message);

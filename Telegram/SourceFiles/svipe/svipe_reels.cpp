@@ -47,6 +47,7 @@ constexpr auto kMaxBlock = 86400;
 
 // Android: SvipeRefResolver's getWebPage retry: previews are generated asynchronously.
 constexpr auto kWebPageRetry = crl::time(1500);
+constexpr auto kWebPageTimeout = crl::time(8000);
 
 // Android: SvipeWatchedSet cap.
 constexpr auto kMaxWatched = 2000;
@@ -118,6 +119,28 @@ QString Feed::Classify(crl::time watched, crl::time duration) {
 		}
 	}
 	return u"SWIPE_AWAY"_q;
+}
+
+std::shared_ptr<Item> Feed::ParseItem(const QJsonObject &o) {
+	const auto username = o.value(u"username"_q).toString();
+	const auto channelId = uint64(o.value(u"channel_id"_q).toVariant().toULongLong());
+	const auto messageId = MsgId(o.value(u"message_id"_q).toInt());
+	if (username.isEmpty() || !channelId || !messageId) {
+		return nullptr;
+	}
+	auto item = std::make_shared<Item>();
+	item->channelId = channelId;
+	item->messageId = messageId;
+	item->username = username;
+	item->shareUrl = o.value(u"share_url"_q).toString();
+	item->width = o.value(u"width"_q).toInt();
+	item->height = o.value(u"height"_q).toInt();
+	item->durationMs = o.value(u"duration_ms"_q).toInteger();
+	const auto thumb = o.value(u"thumb_b64"_q).toString();
+	if (!thumb.isEmpty()) {
+		item->inlineThumb = QByteArray::fromBase64(thumb.toLatin1());
+	}
+	return item;
 }
 
 bool Feed::isWatched(uint64 channelId, MsgId messageId) const {
@@ -338,7 +361,8 @@ bool Feed::takeMessage(
 void Feed::resolve(
 		const std::shared_ptr<Item> &item,
 		bool urgent,
-		Fn<void()> done) {
+		Fn<void()> done,
+		bool background) {
 	if (item->document || item->failed) {
 		if (done) {
 			done();
@@ -363,7 +387,7 @@ void Feed::resolve(
 		tryWebPage(item, [=](bool ok) {
 			if (!weak) {
 				return;
-			} else if (ok || !urgent) {
+			} else if (ok || (!urgent && !background)) {
 				// Read-ahead never spends a resolve; it gets another chance on screen.
 				if (!ok) {
 					item->resolving = false;
@@ -379,7 +403,7 @@ void Feed::resolve(
 				if (weak) {
 					finish(item, ok);
 				}
-			});
+			}, !urgent);
 		});
 	});
 }
@@ -431,6 +455,21 @@ void Feed::tryWebPage(
 		bool retried) {
 	const auto url = PostUrl(*item);
 	const auto weak = base::make_weak(this);
+	// Android: SvipeWebRef's STEP_TIMEOUT. A preview Telegram cannot generate can stay unanswered;
+	// past this the next route is tried instead of waiting for ever.
+	const auto answered = std::make_shared<bool>(false);
+	const auto once = [=](bool ok) {
+		if (!*answered) {
+			*answered = true;
+			done(ok);
+		}
+	};
+	base::call_delayed(kWebPageTimeout, _session, [=] {
+		if (weak && !*answered) {
+			LOG(("Svipe Reels: %1 getWebPage timed out").arg(url));
+			once(false);
+		}
+	});
 	_session->api().request(MTPmessages_GetWebPage(
 		MTP_string(url),
 		MTP_int(0)
@@ -462,33 +501,38 @@ void Feed::tryWebPage(
 			// A post preview's title is the channel's name, its description the post's text.
 			item->title = page->title.isEmpty() ? page->siteName : page->title;
 			item->caption = page->description;
-			done(true);
+			once(true);
 		} else if (pending && !retried) {
 			base::call_delayed(kWebPageRetry, _session, [=] {
 				if (weak) {
-					tryWebPage(item, done, true);
+					if (!*answered) { *answered = true; tryWebPage(item, done, true); }
 				}
 			});
 		} else {
-			done(false);
+			once(false);
 		}
 	}).fail([=](const MTP::Error &error) {
 		LOG(("Svipe Reels: %1 getWebPage failed: %2").arg(url, error.type()));
 		if (weak) {
-			done(false);
+			once(false);
 		}
 	}).handleFloodErrors().send();
 }
 
 void Feed::tryUsername(
 		const std::shared_ptr<Item> &item,
-		Fn<void(bool)> done) {
+		Fn<void(bool)> done,
+		bool back) {
 	const auto now = base::unixtime::now();
 	if (Storage::Get(_session, kBlockedUntilKey).toInteger() > now) {
 		done(false);
 		return;
 	}
-	_usernameQueue.push_front({ item, std::move(done) });
+	if (back) {
+		_usernameQueue.push_back({ item, std::move(done) });
+	} else {
+		_usernameQueue.push_front({ item, std::move(done) });
+	}
 	pumpUsernames();
 }
 
@@ -599,6 +643,18 @@ void Feed::requireMessage(
 			take(true);
 		} else {
 			tryUsername(item, take);
+		}
+	});
+}
+
+void Feed::upgradeToMessage(const std::shared_ptr<Item> &item, Fn<void()> done) {
+	if (item->fullId || !knownChannel(item->channelId)) {
+		return;
+	}
+	const auto weak = base::make_weak(this);
+	tryMessage(item, [=](bool ok) {
+		if (weak && ok && done) {
+			done();
 		}
 	});
 }

@@ -101,6 +101,8 @@ enum class Str {
 	ReelsSubscribe,
 	ReelsSubscribed,
 	ReelsActionUnavailable,
+	VideoTitle,
+	RelatedVideos,
 };
 
 // "N exceptions", with each language's plural forms.

@@ -31,6 +31,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "media/streaming/media_streaming_player.h"
 #include "svipe/svipe_reels.h"
 #include "svipe/svipe_strings.h"
+#include "svipe/svipe_video_section.h"
 #include "ui/image/image.h"
 #include "ui/painter.h"
 #include "ui/ui_utility.h"
@@ -144,6 +145,7 @@ Holder &HolderFor(not_null<Window::SessionController*> controller) {
 
 void Open(not_null<Window::SessionController*> controller) {
 	controller->hideLayer(anim::type::instant); // the main menu Clips were opened from
+	Video::Close(controller); // one full-window surface at a time
 	auto &holder = HolderFor(controller);
 	if (!holder.state) {
 		holder.state = std::make_shared<State>();

@@ -1995,6 +1995,10 @@ PRIVATE
     svipe/svipe_reels.h
     svipe/svipe_reels_section.cpp
     svipe/svipe_reels_section.h
+    svipe/svipe_video.cpp
+    svipe/svipe_video.h
+    svipe/svipe_video_section.cpp
+    svipe/svipe_video_section.h
     svipe/svipe_search_log.cpp
     svipe/svipe_search_log.h
     svipe/svipe_settings_sync.cpp

@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "svipe/svipe_settings_sync.h"
 #include "svipe/svipe_reels.h"
 #include "svipe/svipe_reels_section.h"
+#include "svipe/svipe_video_section.h"
 #include "base/timer_rpl.h"
 
 #include "apiwrap.h"
@@ -289,6 +290,19 @@ Session::Session(
 #ifdef _DEBUG
 		if (QFile::exists(cWorkingDir() + u"tdata/svipe_reels_selftest"_q)) {
 			Svipe::Reels::SelfTest(this);
+		}
+		if (QFile::exists(cWorkingDir() + u"tdata/svipe_open_video"_q)) {
+			if (const auto window = Core::App().activePrimaryWindow()) {
+				if (const auto controller = window->sessionController()) {
+					auto flag = QFile(cWorkingDir() + u"tdata/svipe_open_video"_q);
+					const auto watch = flag.open(QIODevice::ReadOnly)
+						&& flag.readAll().trimmed() == "watch";
+					Svipe::Video::Open(controller);
+					if (watch) {
+						Svipe::Video::DebugOpenFirst(controller);
+					}
+				}
+			}
 		}
 		if (QFile::exists(cWorkingDir() + u"tdata/svipe_open_clips"_q)) {
 			if (const auto window = Core::App().activePrimaryWindow()) {
