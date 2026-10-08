@@ -161,9 +161,14 @@ void Open(not_null<Window::SessionController*> controller) {
 
 void Close(not_null<Window::SessionController*> controller) {
 	const auto i = Holders().find(controller);
-	if (i != end(Holders())) {
-		i->second.view = nullptr;
+	if (i == end(Holders()) || !i->second.view) {
+		return;
 	}
+	auto view = base::take(i->second.view);
+	view->hide();
+	view = nullptr;
+	// What was under the layer has not painted since it went up: have the whole window repaint.
+	Ui::ForceFullRepaint(controller->widget());
 }
 
 Widget::Widget(

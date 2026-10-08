@@ -294,6 +294,12 @@ Session::Session(
 			if (const auto window = Core::App().activePrimaryWindow()) {
 				if (const auto controller = window->sessionController()) {
 					Svipe::Reels::Open(controller);
+					if (QFile(cWorkingDir() + u"tdata/svipe_open_clips"_q).size() > 0) {
+						// Non-empty flag: close again after a while, to check what is left behind.
+						base::call_delayed(8000, controller, [=] {
+							Svipe::Reels::Close(controller);
+						});
+					}
 				}
 			}
 		}
