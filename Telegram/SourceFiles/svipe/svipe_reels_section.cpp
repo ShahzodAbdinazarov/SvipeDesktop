@@ -8,6 +8,9 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "apiwrap.h"
 #include "boxes/report_messages_box.h"
 #include "core/application.h"
+#include "dialogs/dialogs_row.h"
+#include "dialogs/dialogs_indexed_list.h"
+#include "dialogs/dialogs_main_list.h"
 #include "core/core_settings.h"
 #include "data/data_channel.h"
 #include "data/data_document.h"
@@ -109,34 +112,66 @@ struct Widget::Playback {
 	bool withSound = false;
 };
 
-void Open(not_null<Window::SessionController*> controller) {
-	auto state = std::make_shared<State>();
-	state->feed = std::make_unique<Feed>(&controller->session());
-	controller->showSection(std::make_shared<Memento>(std::move(state)));
-}
+namespace {
 
-Memento::Memento(std::shared_ptr<State> state)
-: _state(std::move(state)) {
-}
+struct Holder {
+	std::shared_ptr<State> state;
+	base::unique_qptr<Widget> view;
+};
 
-object_ptr<Window::SectionWidget> Memento::createWidget(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller,
-		Window::Column column,
-		const QRect &geometry) {
-	if (column == Window::Column::Third) {
-		return nullptr;
-	}
-	auto result = object_ptr<Widget>(parent, controller, _state);
-	result->setGeometry(geometry);
+base::flat_map<not_null<Window::SessionController*>, Holder> &Holders() {
+	static auto result = base::flat_map<
+		not_null<Window::SessionController*>,
+		Holder>();
 	return result;
+}
+
+} // namespace
+
+void Open(not_null<Window::SessionController*> controller) {
+	controller->hideLayer(anim::type::instant); // the main menu Clips were opened from
+	auto &holders = Holders();
+	auto i = holders.find(controller);
+	if (i == end(holders)) {
+		i = holders.emplace(controller, Holder()).first;
+		controller->lifetime().add([=] {
+			Holders().remove(controller);
+		});
+	}
+	auto &holder = i->second;
+	if (!holder.state) {
+		holder.state = std::make_shared<State>();
+		holder.state->feed = std::make_unique<Feed>(&controller->session());
+	}
+	if (holder.view) {
+		holder.view->raise();
+		holder.view->setFocus();
+		return;
+	}
+	const auto body = controller->widget()->bodyWidget();
+	holder.view = base::make_unique_q<Widget>(body, controller, holder.state);
+	const auto view = holder.view.get();
+	body->sizeValue() | rpl::on_next([=](QSize size) {
+		view->setGeometry(QRect(QPoint(), size));
+	}, view->lifetime());
+	view->show();
+	view->raise();
+	view->setFocus();
+}
+
+void Close(not_null<Window::SessionController*> controller) {
+	const auto i = Holders().find(controller);
+	if (i != end(Holders())) {
+		i->second.view = nullptr;
+	}
 }
 
 Widget::Widget(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller,
 	std::shared_ptr<State> state)
-: Window::SectionWidget(parent, controller)
+: RpWidget(parent)
+, _controller(controller)
 , _state(std::move(state))
 , _checkTimer([=] { checkPlaying(); })
 , _singleClickTimer([=] { togglePause(); }) {
@@ -163,37 +198,9 @@ Widget::~Widget() {
 	stopPlayback();
 }
 
-bool Widget::showInternal(
-		not_null<Window::SectionMemento*> memento,
-		const Window::SectionShow &params) {
-	if (const auto other = dynamic_cast<Memento*>(memento.get())) {
-		return (other->state() == _state);
-	}
-	return false;
-}
-
-std::shared_ptr<Window::SectionMemento> Widget::createMemento() {
-	return std::make_shared<Memento>(_state);
-}
-
-QPixmap Widget::grabForShowAnimation(const Window::SectionSlideParams &params) {
-	return Ui::GrabWidget(this);
-}
-
-bool Widget::floatPlayerHandleWheelEvent(QEvent *e) {
-	return false;
-}
-
-QRect Widget::floatPlayerAvailableRect() {
-	return mapToGlobal(rect());
-}
-
-void Widget::doSetInnerFocus() {
-	setFocus();
-}
-
-void Widget::showFinishedHook() {
-	setFocus();
+void Widget::close() {
+	// Destroys this widget: the holder owns it.
+	Close(_controller);
 }
 
 std::shared_ptr<Item> Widget::at(int index) const {
@@ -226,6 +233,7 @@ ChannelData *Widget::currentChannel() const {
 
 void Widget::resizeEvent(QResizeEvent *e) {
 	updateLayout();
+	update();
 }
 
 void Widget::updateLayout() {
@@ -251,9 +259,38 @@ void Widget::updateLayout() {
 		cardWidth,
 		cardHeight);
 
+	// Instagram's "Messages" pill: the chats, waiting in the corner. Its width follows its content.
+	const auto session = &controller()->session();
+	const auto unread = session->data().unreadBadge();
+	const auto badgeWidth = unread
+		? std::max(S(18), st::semiboldFont->width(
+			Lang::FormatCountToShort(unread).string) + S(8))
+		: 0;
+	const auto pillHeight = S(48);
+	const auto labelWidth = S(12)
+		+ st::semiboldFont->width(tr::lng_settings_messages(tr::now));
+	const auto fullWidth = S(20) + st::menuIconChatDiscuss.width()
+		+ (badgeWidth ? (badgeWidth - S(8)) : 0)
+		+ labelWidth
+		+ S(16) + S(26) + 2 * (S(26) - S(10)) + S(14);
+	// A narrow window: the label goes, so the pill keeps off the card.
+	_messagesCompact = (this->width() - S(24) - fullWidth)
+		< (l.card.x() + l.card.width() + S(8));
+	const auto pillWidth = fullWidth - (_messagesCompact ? labelWidth : 0);
+	l.messages = QRect(
+		this->width() - S(24) - pillWidth,
+		this->height() - S(24) - pillHeight,
+		pillWidth,
+		pillHeight);
+
 	const auto slot = S(56);
-	auto y = l.card.y() + l.card.height() - S(32);
 	const auto railX = l.card.x() + l.card.width() + railGap;
+	auto railBottom = l.card.y() + l.card.height();
+	if (railX + railWidth > l.messages.x()) {
+		// A narrow window: the rail climbs above the pill instead of hiding behind it.
+		railBottom = std::min(railBottom, l.messages.y() - S(16));
+	}
+	auto y = railBottom - S(32);
 	l.channel = QRect(railX + (railWidth - S(32)) / 2, y, S(32), S(32));
 	y -= slot;
 	l.more = QRect(railX, y, railWidth, slot - S(8));
@@ -270,12 +307,13 @@ void Widget::updateLayout() {
 	const auto center = this->height() / 2;
 	l.up = QRect(arrowX, center - S(8) - arrow, arrow, arrow);
 	l.down = QRect(arrowX, center + S(8), arrow, arrow);
-	update();
 }
 
 Widget::Button Widget::buttonAt(QPoint point) const {
 	const auto &l = _layout;
-	if (!current()) {
+	if (l.messages.contains(point)) {
+		return Button::Messages;
+	} else if (!current()) {
 		return Button::None;
 	}
 	const auto items = {
@@ -289,6 +327,7 @@ Widget::Button Widget::buttonAt(QPoint point) const {
 		std::pair{ l.author, Button::Channel },
 		std::pair{ l.up, Button::Up },
 		std::pair{ l.down, Button::Down },
+		std::pair{ l.messages, Button::Messages },
 	};
 	for (const auto &[rect, button] : items) {
 		if (!rect.isEmpty() && rect.contains(point)) {
@@ -464,8 +503,7 @@ void Widget::checkPlaying() {
 		&& !_userPaused
 		&& !_menu
 		&& window->isActive()
-		&& !controller()->isLayerShown()
-		&& !animatingShow();
+		&& !controller()->isLayerShown();
 	if (allowed && instance->paused()) {
 		instance->resume();
 	} else if (!allowed && instance->active() && !instance->paused()) {
@@ -568,6 +606,7 @@ void Widget::activate(Button button) {
 	case Button::Subscribe: subscribe(); break;
 	case Button::Up: step(-1); break;
 	case Button::Down: step(1); break;
+	case Button::Messages: close(); break;
 	case Button::Card:
 		// A tap pauses; a second tap within the double-click interval is a like instead.
 		_singleClickTimer.callOnce(QGuiApplication::styleHints()->mouseDoubleClickInterval());
@@ -590,7 +629,11 @@ void Widget::toggleLike() {
 
 void Widget::openComments() {
 	withMessage([=](not_null<HistoryItem*> message) {
-		controller()->showRepliesForMessage(message->history(), message->id);
+		const auto controller = this->controller();
+		const auto history = message->history();
+		const auto id = message->id;
+		close();
+		controller->showRepliesForMessage(history, id);
 	});
 }
 
@@ -677,10 +720,14 @@ void Widget::copyLink() {
 
 void Widget::goToChannel() {
 	withMessage([=](not_null<HistoryItem*> message) {
-		controller()->showPeerHistory(
-			message->history()->peer,
-			Window::SectionShow::Way::Forward,
-			message->id);
+		const auto controller = this->controller();
+		const auto peer = message->history()->peer;
+		const auto id = message->id;
+		close();
+		controller->showPeerHistory(
+			peer,
+			Window::SectionShow::Way::ClearStack,
+			id);
 	});
 }
 
@@ -998,6 +1045,11 @@ void Widget::paintRail(Painter &p, const Layout &l) {
 			l.channel.x(),
 			l.channel.y(),
 			l.channel.width());
+	} else {
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		p.setBrush(QColor(255, 255, 255, 60));
+		p.drawEllipse(l.channel);
 	}
 }
 
@@ -1029,10 +1081,7 @@ void Widget::paintArrows(Painter &p, const Layout &l) {
 }
 
 void Widget::paintEvent(QPaintEvent *e) {
-	if (animatingShow()) {
-		SectionWidget::paintEvent(e);
-		return;
-	}
+	updateLayout(); // the pill follows the unread count
 	auto p = Painter(this);
 	p.fillRect(rect(), QColor(0x12, 0x12, 0x12));
 	const auto progress = _slide.value(1.);
@@ -1051,6 +1100,74 @@ void Widget::paintEvent(QPaintEvent *e) {
 	}
 	paintRail(p, _layout);
 	paintArrows(p, _layout);
+	paintMessages(p, _layout);
+}
+
+void Widget::paintMessages(Painter &p, const Layout &l) {
+	const auto &r = l.messages;
+	auto hq = PainterHighQualityEnabler(p);
+	p.setPen(Qt::NoPen);
+	p.setBrush(QColor(0x26, 0x26, 0x26, (_over == Button::Messages) ? 255 : 235));
+	p.drawRoundedRect(r, r.height() / 2., r.height() / 2.);
+
+	const auto session = &controller()->session();
+	auto left = r.x() + S(20);
+	const auto icon = &st::menuIconChatDiscuss;
+	icon->paint(
+		p,
+		QPoint(left, r.y() + (r.height() - icon->height()) / 2),
+		width(),
+		QColor(255, 255, 255));
+	auto labelLeft = left + icon->width() + S(12);
+	if (const auto unread = session->data().unreadBadge()) {
+		const auto text = Lang::FormatCountToShort(unread).string;
+		const auto font = st::semiboldFont;
+		const auto h = S(18);
+		const auto w = std::max(h, font->width(text) + S(8));
+		const auto badge = QRect(left + icon->width() - S(8), r.y() + S(4), w, h);
+		p.setPen(Qt::NoPen);
+		p.setBrush(kLikedColor);
+		p.drawRoundedRect(badge, h / 2., h / 2.);
+		p.setFont(font);
+		p.setPen(QColor(255, 255, 255));
+		p.drawText(badge, Qt::AlignCenter, text);
+		labelLeft = std::max(labelLeft, badge.x() + badge.width() + S(4));
+	}
+	left = labelLeft;
+	if (!_messagesCompact) {
+		p.setFont(st::semiboldFont);
+		p.setPen(QColor(255, 255, 255));
+		p.drawText(
+			QRect(left, r.y(), r.width(), r.height()),
+			Qt::AlignVCenter | Qt::AlignLeft,
+			tr::lng_settings_messages(tr::now));
+	}
+
+	// The last chats, overlapping, at the pill's right end.
+	auto peers = std::vector<not_null<PeerData*>>();
+	for (const auto &row : session->data().chatsList()->indexed()->all()) {
+		if (const auto history = row->history()) {
+			peers.push_back(history->peer);
+			if (peers.size() == _recentUserpics.size()) {
+				break;
+			}
+		}
+	}
+	const auto size = S(26);
+	auto x = r.x() + r.width() - S(14) - size;
+	for (auto i = int(peers.size()); i > 0; --i) {
+		const auto index = i - 1;
+		const auto rx = x - (int(peers.size()) - i) * (size - S(10));
+		p.setBrush(QColor(0x26, 0x26, 0x26));
+		p.setPen(Qt::NoPen);
+		p.drawEllipse(QRect(rx - S(2), r.y() + (r.height() - size) / 2 - S(2), size + S(4), size + S(4)));
+		peers[index]->paintUserpic(
+			p,
+			_recentUserpics[index],
+			rx,
+			r.y() + (r.height() - size) / 2,
+			size);
+	}
 }
 
 void Widget::wheelEvent(QWheelEvent *e) {
@@ -1100,10 +1217,10 @@ void Widget::keyPressEvent(QKeyEvent *e) {
 		toggleLike();
 		return;
 	case Qt::Key_Escape:
-		controller()->showBackFromStack();
+		close();
 		return;
 	}
-	SectionWidget::keyPressEvent(e);
+	RpWidget::keyPressEvent(e);
 }
 
 void Widget::mousePressEvent(QMouseEvent *e) {

@@ -10,8 +10,7 @@ when you come back to it.
 */
 #pragma once
 
-#include "window/section_widget.h"
-#include "window/section_memento.h"
+#include "ui/rp_widget.h"
 #include "ui/effects/animations.h"
 #include "ui/text/text.h"
 #include "ui/userpic_view.h"
@@ -40,49 +39,31 @@ namespace Svipe::Reels {
 class Feed;
 struct Item;
 
+}
+
+namespace Window {
+class SessionController;
+} // namespace Window
+
+namespace Svipe::Reels {
+
 struct State {
 	std::unique_ptr<Feed> feed;
 	int index = 0;
 };
 
+// Clips cover the whole window, the chat list included, as Instagram's reels do; the chats wait
+// behind the "Messages" pill in the bottom-right corner.
 void Open(not_null<Window::SessionController*> controller);
+void Close(not_null<Window::SessionController*> controller);
 
-class Memento final : public Window::SectionMemento {
-public:
-	explicit Memento(std::shared_ptr<State> state);
-
-	object_ptr<Window::SectionWidget> createWidget(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller,
-		Window::Column column,
-		const QRect &geometry) override;
-
-	[[nodiscard]] const std::shared_ptr<State> &state() const {
-		return _state;
-	}
-
-private:
-	std::shared_ptr<State> _state;
-
-};
-
-class Widget final : public Window::SectionWidget {
+class Widget final : public Ui::RpWidget {
 public:
 	Widget(
 		QWidget *parent,
 		not_null<Window::SessionController*> controller,
 		std::shared_ptr<State> state);
 	~Widget();
-
-	bool showInternal(
-		not_null<Window::SectionMemento*> memento,
-		const Window::SectionShow &params) override;
-	std::shared_ptr<Window::SectionMemento> createMemento() override;
-	QPixmap grabForShowAnimation(
-		const Window::SectionSlideParams &params) override;
-
-	bool floatPlayerHandleWheelEvent(QEvent *e) override;
-	QRect floatPlayerAvailableRect() override;
 
 private:
 	struct Playback;
@@ -97,6 +78,7 @@ private:
 		Subscribe,
 		Up,
 		Down,
+		Messages,
 		Card,
 	};
 	struct Layout {
@@ -111,6 +93,7 @@ private:
 		QRect subscribe;
 		QRect up;
 		QRect down;
+		QRect messages;
 	};
 
 	void paintEvent(QPaintEvent *e) override;
@@ -122,8 +105,11 @@ private:
 	void mouseDoubleClickEvent(QMouseEvent *e) override;
 	void mouseMoveEvent(QMouseEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
-	void doSetInnerFocus() override;
-	void showFinishedHook() override;
+
+	[[nodiscard]] not_null<Window::SessionController*> controller() const {
+		return _controller;
+	}
+	void close();
 
 	[[nodiscard]] std::shared_ptr<Item> current() const;
 	[[nodiscard]] std::shared_ptr<Item> at(int index) const;
@@ -157,16 +143,20 @@ private:
 	void paintCard(Painter &p, const Layout &layout);
 	void paintRail(Painter &p, const Layout &layout);
 	void paintArrows(Painter &p, const Layout &layout);
+	void paintMessages(Painter &p, const Layout &layout);
 
+	const not_null<Window::SessionController*> _controller;
 	const std::shared_ptr<State> _state;
 	std::unique_ptr<Playback> _playback;
 	std::unique_ptr<Data::MediaPreload> _preload;
 	DocumentData *_preloading = nullptr;
 	Layout _layout;
+	bool _messagesCompact = false;
 
 	Ui::Text::String _title;
 	Ui::Text::String _caption;
 	Ui::PeerUserpicView _userpic;
+	std::array<Ui::PeerUserpicView, 3> _recentUserpics;
 
 	bool _userPaused = false;
 	base::Timer _checkTimer;
