@@ -12,6 +12,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "svipe/svipe_message_sync.h"
 #include "svipe/svipe_deleted_in_chat.h"
 #include "svipe/svipe_settings_sync.h"
+#include "svipe/svipe_reels.h"
+#include "svipe/svipe_reels_section.h"
 #include "base/timer_rpl.h"
 
 #include "apiwrap.h"
@@ -284,6 +286,18 @@ Session::Session(
 	// Delayed so it does not compete with the requests a session makes as it starts.
 	base::call_delayed(5000, this, [=] {
 		Svipe::SettingsSync::Pull(this);
+#ifdef _DEBUG
+		if (QFile::exists(cWorkingDir() + u"tdata/svipe_reels_selftest"_q)) {
+			Svipe::Reels::SelfTest(this);
+		}
+		if (QFile::exists(cWorkingDir() + u"tdata/svipe_open_clips"_q)) {
+			if (const auto window = Core::App().activePrimaryWindow()) {
+				if (const auto controller = window->sessionController()) {
+					Svipe::Reels::Open(controller);
+				}
+			}
+		}
+#endif // _DEBUG
 		// A rule set on the phone while this app runs must hold here too, not after a restart:
 		// one small GET every two minutes.
 		base::timer_each(

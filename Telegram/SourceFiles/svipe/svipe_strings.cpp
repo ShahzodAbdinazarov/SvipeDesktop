@@ -254,6 +254,63 @@ Translations Lookup(Str key) {
 		"Archived photos deleted",
 		"Arxivdagi rasmlar o'chirildi",
 		"Архивные фото удалены" };
+	// Android's MainTabsReels and the SvipeReels* lines, verbatim.
+	case Str::ReelsTitle: return { "Clips", "Clips", "Clips" };
+	case Str::ReelsLoadingFeed: return {
+		"Loading feed…",
+		"Lenta yuklanmoqda…",
+		"Лента загружается…" };
+	case Str::ReelsConnectFailed: return {
+		"Couldn't reach Svipe. Trying again…",
+		"Svipe'ga ulanib bo'lmadi. Qayta urinilmoqda…",
+		"Не удалось связаться со Svipe. Пробуем ещё раз…" };
+	case Str::ReelsNoInternet: return {
+		"No internet. The feed will load as soon as you're back online…",
+		"Internet yo'q. Ulanish qaytishi bilan lenta yuklanadi…",
+		"Нет интернета. Лента загрузится, как только появится связь…" };
+	case Str::ReelsLoadFailed: return {
+		"Feed failed to load (%1)",
+		"Lenta yuklanmadi (%1)",
+		"Не удалось загрузить ленту (%1)" };
+	case Str::ReelsEmpty: return {
+		"No videos yet",
+		"Hozircha video yo'q",
+		"Пока нет видео" };
+	case Str::ReelsSavedChannel: return {
+		"Saved Clips",
+		"Saqlangan Clips",
+		"Сохранённые Clips" };
+	case Str::ReelsSave: return { "Save", "Saqlash", "Сохранить" };
+	case Str::ReelsShare: return { "Share", "Ulashish", "Поделиться" };
+	case Str::ReelsGoToChannel: return {
+		"Go to channel",
+		"Kanalga o'tish",
+		"Перейти на канал" };
+	case Str::ReelsNotInterested: return {
+		"Not interested",
+		"Qiziq emas",
+		"Не интересно" };
+	case Str::ReelsLessLikeThis: return {
+		"You'll see fewer videos like this",
+		"Bunday videolar kamroq ko'rsatiladi",
+		"Таких видео станет меньше" };
+	case Str::ReelsBlockChannel: return {
+		"Block channel",
+		"Kanalni bloklash",
+		"Заблокировать канал" };
+	case Str::ReelsChannelBlocked: return {
+		"Channel blocked",
+		"Kanal bloklandi",
+		"Канал заблокирован" };
+	case Str::ReelsSubscribe: return { "Subscribe", "Obuna", "Подписаться" };
+	case Str::ReelsSubscribed: return {
+		"Subscribed ✓",
+		"Obuna ✓",
+		"Вы подписаны ✓" };
+	case Str::ReelsActionUnavailable: return {
+		"This post could not be loaded. Try again in a moment.",
+		"Bu post yuklanmadi. Birozdan keyin qayta urining.",
+		"Не удалось загрузить эту запись. Попробуйте через мгновение." };
 	case Str::AvatarSettingsFailed: return {
 		"Couldn't reach the server. Try again.",
 		"Serverga ulanib bo'lmadi. Qayta urinib ko'ring.",

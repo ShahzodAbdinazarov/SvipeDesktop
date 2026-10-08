@@ -84,6 +84,23 @@ enum class Str {
 	RecentActionsEmpty,
 	YouDeletedMessage,
 	YouEditedMessage,
+	ReelsTitle,
+	ReelsLoadingFeed,
+	ReelsConnectFailed,
+	ReelsNoInternet,
+	ReelsLoadFailed,
+	ReelsEmpty,
+	ReelsSavedChannel,
+	ReelsSave,
+	ReelsShare,
+	ReelsGoToChannel,
+	ReelsNotInterested,
+	ReelsLessLikeThis,
+	ReelsBlockChannel,
+	ReelsChannelBlocked,
+	ReelsSubscribe,
+	ReelsSubscribed,
+	ReelsActionUnavailable,
 };
 
 // "N exceptions", with each language's plural forms.

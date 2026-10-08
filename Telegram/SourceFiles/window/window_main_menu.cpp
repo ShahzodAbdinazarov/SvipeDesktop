@@ -7,6 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_main_menu.h"
 
+#include "svipe/svipe_reels_section.h"
+#include "svipe/svipe_strings.h"
+
 #include "apiwrap.h"
 #include "base/event_filter.h"
 #include "base/qt_signal_producer.h"
@@ -672,6 +675,17 @@ void MainMenu::setupMenu() {
 		)->setClickedCallback([=] {
 			controller->showSection(
 				Info::Stories::Make(controller->session().user()));
+		});
+
+		// Svipe: Clips, the Android app's second tab.
+		_menu->add(
+			CreateButtonWithIcon(
+				_menu,
+				Svipe::TrValue(Svipe::Str::ReelsTitle),
+				st::mainMenuButton,
+				{ &st::menuIconVideoChat })
+		)->setClickedCallback([=] {
+			Svipe::Reels::Open(controller);
 		});
 
 		SetupMenuBots(_menu, controller);
