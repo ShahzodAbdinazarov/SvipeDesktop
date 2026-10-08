@@ -39,6 +39,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 #include "styles/style_layers.h"
+#include "styles/style_window.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_widgets.h"
 
@@ -117,6 +118,7 @@ namespace {
 struct Holder {
 	std::shared_ptr<State> state;
 	base::unique_qptr<Widget> view;
+	rpl::variable<bool> shown = false;
 };
 
 base::flat_map<not_null<Window::SessionController*>, Holder> &Holders() {
@@ -126,10 +128,7 @@ base::flat_map<not_null<Window::SessionController*>, Holder> &Holders() {
 	return result;
 }
 
-} // namespace
-
-void Open(not_null<Window::SessionController*> controller) {
-	controller->hideLayer(anim::type::instant); // the main menu Clips were opened from
+Holder &HolderFor(not_null<Window::SessionController*> controller) {
 	auto &holders = Holders();
 	auto i = holders.find(controller);
 	if (i == end(holders)) {
@@ -138,7 +137,14 @@ void Open(not_null<Window::SessionController*> controller) {
 			Holders().remove(controller);
 		});
 	}
-	auto &holder = i->second;
+	return i->second;
+}
+
+} // namespace
+
+void Open(not_null<Window::SessionController*> controller) {
+	controller->hideLayer(anim::type::instant); // the main menu Clips were opened from
+	auto &holder = HolderFor(controller);
 	if (!holder.state) {
 		holder.state = std::make_shared<State>();
 		holder.state->feed = std::make_unique<Feed>(&controller->session());
@@ -151,12 +157,20 @@ void Open(not_null<Window::SessionController*> controller) {
 	const auto body = controller->widget()->bodyWidget();
 	holder.view = base::make_unique_q<Widget>(body, controller, holder.state);
 	const auto view = holder.view.get();
-	body->sizeValue() | rpl::on_next([=](QSize size) {
-		view->setGeometry(QRect(QPoint(), size));
+	// Everything right of the folders sidebar: the sidebar stays, with Clips selected on it.
+	rpl::combine(
+		body->sizeValue(),
+		rpl::single(rpl::empty) | rpl::then(controller->filtersMenuChanged())
+	) | rpl::on_next([=](QSize size, auto) {
+		const auto left = controller->hasFiltersMenu()
+			? st::windowFiltersWidth
+			: 0;
+		view->setGeometry(QRect(left, 0, size.width() - left, size.height()));
 	}, view->lifetime());
 	view->show();
 	view->raise();
 	view->setFocus();
+	holder.shown = true;
 }
 
 void Close(not_null<Window::SessionController*> controller) {
@@ -167,6 +181,7 @@ void Close(not_null<Window::SessionController*> controller) {
 	auto view = base::take(i->second.view);
 	view->hide();
 	view = nullptr;
+	i->second.shown = false;
 	// What was under the layer has not painted since it went up: have the whole window repaint.
 	Ui::ForceFullRepaint(controller->widget());
 }
@@ -206,6 +221,15 @@ Widget::~Widget() {
 void Widget::close() {
 	// Destroys this widget: the holder owns it.
 	Close(_controller);
+}
+
+bool Shown(not_null<Window::SessionController*> controller) {
+	return HolderFor(controller).shown.current();
+}
+
+rpl::producer<bool> ShownValue(
+		not_null<Window::SessionController*> controller) {
+	return HolderFor(controller).shown.value();
 }
 
 std::shared_ptr<Item> Widget::at(int index) const {

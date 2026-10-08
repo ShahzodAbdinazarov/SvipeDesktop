@@ -7,6 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_filters_menu.h"
 
+#include "svipe/svipe_reels_section.h"
+#include "svipe/svipe_strings.h"
+
 #include "menu/menu_mark_as_read.h"
 #include "mainwindow.h"
 #include "window/window_session_controller.h"
@@ -46,6 +49,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "styles/style_widgets.h"
 #include "styles/style_window.h"
+#include "styles/style_filter_icons.h"
 #include "styles/style_menu_icons.h"
 
 #include <QtGui/QtEvents>
@@ -383,6 +387,9 @@ void FiltersMenu::refresh() {
 	auto now = base::flat_map<int, base::unique_qptr<Ui::SideBarButton>>();
 	const auto &currentFilter = _session->activeChatsFilterCurrent();
 	for (const auto &filter : filters->list()) {
+		if (_svipeClipsShown && filter.id()) {
+			continue; // Svipe: beside Clips, only All chats
+		}
 		const auto nextIsLocked = (now.size() >= premiumFrom);
 		if (nextIsLocked && (currentFilter == filter.id())) {
 			_session->setActiveChatsFilter(FilterId(0));
@@ -396,6 +403,11 @@ void FiltersMenu::refresh() {
 		now.emplace(filter.id(), std::move(button));
 	}
 	_filters = std::move(now);
+	if (_svipeClipsShown) {
+		for (const auto &[id, button] : _filters) {
+			button->setActive(false);
+		}
+	}
 	// Re-establish the list's Tab-stop on the folder that was focused (if it
 	// survived the rebuild), else on the active one, so a refresh - rename,
 	// deletion, Premium-state change - never leaves the list without a Tab-stop.
@@ -434,6 +446,7 @@ void FiltersMenu::refresh() {
 
 void FiltersMenu::setupList() {
 	_list = _container->add(object_ptr<TabListLayout>(_container));
+	setupSvipeClips();
 	_list->setAccessibleName(tr::lng_filters_title(tr::now));
 	_setup = prepareButton(
 		_container,
@@ -462,6 +475,44 @@ void FiltersMenu::setupList() {
 		updateFavorite();
 	}, _outer.lifetime());
 	updateFavorite();
+}
+
+// Svipe: Clips sit above All chats. While Clips are open only All chats stays beside them, and
+// pressing it closes Clips and brings the other folders back.
+void FiltersMenu::setupSvipeClips() {
+	auto clips = object_ptr<Ui::SideBarButton>(
+		_container,
+		TextWithEntities{ Svipe::Tr(Svipe::Str::ReelsTitle) },
+		buttonStyle());
+	const auto mode = tabsMode();
+	clips->setShowIcon(mode != Ui::ChatsFiltersTabsMode::TextOnly);
+	clips->setShowText(mode != Ui::ChatsFiltersTabsMode::IconsOnly);
+	clips->setIconOverride(
+		&st::foldersSvipeClips,
+		&st::foldersSvipeClipsActive);
+	_svipeClips = base::unique_qptr<Ui::SideBarButton>(
+		_container->insert(0, std::move(clips)));
+	_svipeClips->setClickedCallback([=] {
+		if (!_svipeClipsShown) {
+			Svipe::Reels::Open(_session);
+		}
+	});
+	// Built from inside refresh(): only later changes may refresh again.
+	_svipeClipsShown = Svipe::Reels::Shown(_session);
+	_svipeClips->setActive(_svipeClipsShown);
+	Svipe::Reels::ShownValue(
+		_session
+	) | rpl::skip(1) | rpl::on_next([=](bool shown) {
+		_svipeClipsShown = shown;
+		_svipeClips->setActive(shown);
+		if (_setup) {
+			_setup->setVisible(!shown);
+		}
+		if (_favorite) {
+			_favorite->setVisible(!shown);
+		}
+		refresh();
+	}, _svipeClips->lifetime());
 }
 
 void FiltersMenu::updateFavorite() {
@@ -689,6 +740,9 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 				&_session->session(),
 				std::nullopt));
 		} else if (id >= 0) {
+			if (_svipeClipsShown) {
+				Svipe::Reels::Close(_session);
+			}
 			_session->setActiveChatsFilter(id);
 		} else {
 			openFiltersSettings();

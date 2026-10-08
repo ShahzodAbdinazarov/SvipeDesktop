@@ -49,6 +49,9 @@ foldersGroups: icon {{ "folders/folders_group", sideBarIconFg }};
 foldersGroupsActive: icon {{ "folders/folders_group", sideBarIconFgActive }};
 foldersAll: icon {{ "folders/folders_all", sideBarIconFg }};
 foldersAllActive: icon {{ "folders/folders_all", sideBarIconFgActive }};
+// Svipe: Clips, above All chats (the Android app's Clips tab icon).
+foldersSvipeClips: icon {{ "folders/svipe_clips", sideBarIconFg }};
+foldersSvipeClipsActive: icon {{ "folders/svipe_clips", sideBarIconFgActive }};
 foldersUnread: icon {{ "folders/folders_unread", sideBarIconFg }};
 foldersUnreadActive: icon {{ "folders/folders_unread", sideBarIconFgActive }};
 // foldersCheck: icon {{ "folders/folders_check", sideBarIconFg }};

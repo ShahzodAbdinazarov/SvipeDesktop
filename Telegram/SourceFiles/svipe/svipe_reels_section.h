@@ -56,6 +56,9 @@ struct State {
 // behind the "Messages" pill in the bottom-right corner.
 void Open(not_null<Window::SessionController*> controller);
 void Close(not_null<Window::SessionController*> controller);
+[[nodiscard]] bool Shown(not_null<Window::SessionController*> controller);
+[[nodiscard]] rpl::producer<bool> ShownValue(
+	not_null<Window::SessionController*> controller);
 
 class Widget final : public Ui::RpWidget {
 public:

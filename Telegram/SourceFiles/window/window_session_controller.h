@@ -657,6 +657,9 @@ public:
 
 	void toggleFiltersMenu(bool enabled);
 	[[nodiscard]] rpl::producer<> filtersMenuChanged() const;
+	[[nodiscard]] bool hasFiltersMenu() const { // Svipe: Clips sit beside it
+		return (_filters != nullptr);
+	}
 
 	[[nodiscard]] auto defaultChatTheme() const
 	-> const std::shared_ptr<Ui::ChatTheme> & {

@@ -677,8 +677,9 @@ void MainMenu::setupMenu() {
 				Info::Stories::Make(controller->session().user()));
 		});
 
-		// Svipe: Clips, the Android app's second tab.
-		_menu->add(
+		// Svipe: Clips, the Android app's second tab — here only when there is no folders
+		// sidebar to hold it.
+		if (!controller->hasFiltersMenu()) _menu->add(
 			CreateButtonWithIcon(
 				_menu,
 				Svipe::TrValue(Svipe::Str::ReelsTitle),
