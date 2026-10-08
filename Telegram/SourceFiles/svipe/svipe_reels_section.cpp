@@ -306,16 +306,19 @@ void Widget::updateLayout() {
 	_messagesCompact = (this->width() - S(24) - fullWidth)
 		< (l.card.x() + l.card.width() + S(8));
 	const auto pillWidth = fullWidth - (_messagesCompact ? labelWidth : 0);
-	l.messages = QRect(
-		this->width() - S(24) - pillWidth,
-		this->height() - S(24) - pillHeight,
-		pillWidth,
-		pillHeight);
+	// With the folders sidebar beside Clips, All chats is already there: no pill.
+	l.messages = controller()->hasFiltersMenu()
+		? QRect()
+		: QRect(
+			this->width() - S(24) - pillWidth,
+			this->height() - S(24) - pillHeight,
+			pillWidth,
+			pillHeight);
 
 	const auto slot = S(56);
 	const auto railX = l.card.x() + l.card.width() + railGap;
 	auto railBottom = l.card.y() + l.card.height();
-	if (railX + railWidth > l.messages.x()) {
+	if (!l.messages.isEmpty() && railX + railWidth > l.messages.x()) {
 		// A narrow window: the rail climbs above the pill instead of hiding behind it.
 		railBottom = std::min(railBottom, l.messages.y() - S(16));
 	}
@@ -340,7 +343,7 @@ void Widget::updateLayout() {
 
 Widget::Button Widget::buttonAt(QPoint point) const {
 	const auto &l = _layout;
-	if (l.messages.contains(point)) {
+	if (!l.messages.isEmpty() && l.messages.contains(point)) {
 		return Button::Messages;
 	} else if (!current()) {
 		return Button::None;
@@ -1135,6 +1138,9 @@ void Widget::paintEvent(QPaintEvent *e) {
 
 void Widget::paintMessages(Painter &p, const Layout &l) {
 	const auto &r = l.messages;
+	if (r.isEmpty()) {
+		return;
+	}
 	auto hq = PainterHighQualityEnabler(p);
 	p.setPen(Qt::NoPen);
 	p.setBrush(QColor(0x26, 0x26, 0x26, (_over == Button::Messages) ? 255 : 235));
