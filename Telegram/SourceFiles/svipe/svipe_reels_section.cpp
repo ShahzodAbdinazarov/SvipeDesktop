@@ -1112,7 +1112,8 @@ void Widget::paintArrows(Painter &p, const Layout &l) {
 void Widget::paintEvent(QPaintEvent *e) {
 	updateLayout(); // the pill follows the unread count
 	auto p = Painter(this);
-	p.fillRect(rect(), QColor(0x12, 0x12, 0x12));
+	// The same background as the folders sidebar beside it, in every theme.
+	p.fillRect(rect(), st::windowFiltersButton.textBg);
 	const auto progress = _slide.value(1.);
 	if (progress < 1. && !_slideFrom.isNull()) {
 		const auto &card = _layout.card;
