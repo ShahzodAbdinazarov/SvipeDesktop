@@ -47,6 +47,9 @@ if [ "$BUILD" = 1 ]; then
     -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF -D CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
     -D CMAKE_CXX_FLAGS=-DMETA_NO_STD_FORWARD_DECLARATIONS \
     -D CMAKE_OBJCXX_FLAGS=-DMETA_NO_STD_FORWARD_DECLARATIONS >/dev/null)
+  # Xcode does not reprocess the bundle's Info.plist when only the configured template changed,
+  # so a Svipe version bump shipped as the old number (1.0.12 went out as "1.0.11"). Drop it.
+  rm -f "$ROOT/out/Release/Svipe.app/Contents/Info.plist"
   (cd "$ROOT/out" && xcodebuild -project Telegram.xcodeproj -scheme Telegram -configuration Release \
     -destination 'platform=macOS,arch=arm64' -jobs 10 build | grep -E "error:|BUILD (SUCCEEDED|FAILED)")
 fi
@@ -100,6 +103,8 @@ SIZE=$(stat -f %z "$DMG")
 SHA=$(shasum -a 256 "$DMG" | cut -d' ' -f1)
 echo "dmg: $DMG"
 echo "version $VERSION, $SIZE bytes, sha256 $SHA"
+[ "$VERSION" = "$(head -1 "$ROOT/Telegram/build/svipe_version")" ] \
+  || die "the bundle says $VERSION but build/svipe_version says $(head -1 "$ROOT/Telegram/build/svipe_version")"
 
 [ -n "$TARGET" ] || exit 0
 case "$TARGET" in
