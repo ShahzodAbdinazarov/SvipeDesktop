@@ -30,6 +30,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "media/streaming/media_streaming_instance.h"
 #include "media/streaming/media_streaming_player.h"
 #include "svipe/svipe_reels.h"
+#include "svipe/svipe_storage.h"
 #include "svipe/svipe_strings.h"
 #include "svipe/svipe_video_section.h"
 #include "ui/image/image.h"
@@ -118,6 +119,7 @@ namespace {
 
 struct Holder {
 	std::shared_ptr<State> state;
+	crl::time stateAt = 0;
 	base::unique_qptr<Widget> view;
 	rpl::variable<bool> shown = false;
 };
@@ -143,14 +145,51 @@ Holder &HolderFor(not_null<Window::SessionController*> controller) {
 
 } // namespace
 
+// Android: SvipeReelWarmer — a warmed page is fresh for 10 minutes; the head is what plays first.
+constexpr auto kFreshFor = crl::time(10 * 60 * 1000);
+constexpr auto kWarmResolve = 3;
+const auto kUsedKey = u"svipe_clips_used"_q;
+
+void EnsureState(not_null<Window::SessionController*> controller, Holder &holder) {
+	const auto stale = holder.state
+		&& !holder.view
+		&& (crl::now() - holder.stateAt > kFreshFor);
+	if (!holder.state || stale) {
+		holder.state = std::make_shared<State>();
+		holder.state->feed = std::make_unique<Feed>(&controller->session());
+		holder.stateAt = crl::now();
+	}
+}
+
+void Warm(not_null<Window::SessionController*> controller) {
+	if (!Storage::Get(&controller->session(), kUsedKey).toBool()) {
+		return;
+	}
+	auto &holder = HolderFor(controller);
+	EnsureState(controller, holder);
+	const auto feed = holder.state->feed.get();
+	const auto done = std::make_shared<bool>(false);
+	const auto lifetime = std::make_shared<rpl::lifetime>();
+	feed->updates() | rpl::on_next([=] {
+		if (*done || feed->items().empty()) {
+			return;
+		}
+		*done = true;
+		const auto &items = feed->items();
+		for (auto i = 0; i != std::min(int(items.size()), kWarmResolve); ++i) {
+			feed->resolve(items[i], false, nullptr);
+		}
+		lifetime->destroy();
+	}, *lifetime);
+	feed->loadMore();
+}
+
 void Open(not_null<Window::SessionController*> controller) {
 	controller->hideLayer(anim::type::instant); // the main menu Clips were opened from
 	Video::Close(controller); // one full-window surface at a time
+	Storage::Set(&controller->session(), kUsedKey, true);
 	auto &holder = HolderFor(controller);
-	if (!holder.state) {
-		holder.state = std::make_shared<State>();
-		holder.state->feed = std::make_unique<Feed>(&controller->session());
-	}
+	EnsureState(controller, holder);
 	if (holder.view) {
 		holder.view->raise();
 		holder.view->setFocus();

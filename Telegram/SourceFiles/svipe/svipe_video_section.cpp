@@ -25,6 +25,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "media/streaming/media_streaming_player.h"
 #include "svipe/svipe_reels.h"
 #include "svipe/svipe_reels_section.h"
+#include "svipe/svipe_storage.h"
 #include "svipe/svipe_strings.h"
 #include "svipe/svipe_video.h"
 #include "ui/image/image.h"
@@ -1365,6 +1366,7 @@ void Widget::keyPressEvent(QKeyEvent *e) {
 struct Holder {
 	std::unique_ptr<Reels::Feed> feed;
 	std::unique_ptr<List> list;
+	crl::time listAt = 0;
 	base::unique_qptr<Widget> view;
 	rpl::variable<bool> shown = false;
 };
@@ -1390,14 +1392,55 @@ Holder &HolderFor(not_null<Window::SessionController*> controller) {
 
 } // namespace
 
+// Android: SvipeVideoWarmer.FRESH_FOR_MS — the pipe is personalised and moves on.
+constexpr auto kFreshFor = crl::time(10 * 60 * 1000);
+constexpr auto kWarmResolve = 6; // the cards on the first screen
+const auto kUsedKey = u"svipe_video_used"_q;
+
+void EnsureList(not_null<Window::SessionController*> controller, Holder &holder) {
+	if (!holder.feed) {
+		holder.feed = std::make_unique<Reels::Feed>(&controller->session());
+	}
+	const auto stale = holder.list
+		&& !holder.view
+		&& (crl::now() - holder.listAt > kFreshFor);
+	if (!holder.list || stale) {
+		holder.list = std::make_unique<List>(holder.feed.get(), u"/v1/videos"_q, kPageSize);
+		holder.listAt = crl::now();
+	}
+}
+
+void Warm(not_null<Window::SessionController*> controller) {
+	const auto session = &controller->session();
+	if (!Storage::Get(session, kUsedKey).toBool()) {
+		return; // a tab you never open should cost you nothing
+	}
+	auto &holder = HolderFor(controller);
+	EnsureList(controller, holder);
+	const auto feed = holder.feed.get();
+	const auto list = holder.list.get();
+	const auto done = std::make_shared<bool>(false);
+	const auto lifetime = std::make_shared<rpl::lifetime>();
+	list->updates() | rpl::on_next([=] {
+		if (*done || list->items().empty()) {
+			return;
+		}
+		*done = true;
+		const auto &items = list->items();
+		for (auto i = 0; i != std::min(int(items.size()), kWarmResolve); ++i) {
+			feed->resolve(items[i], false, nullptr, true);
+		}
+		lifetime->destroy();
+	}, *lifetime);
+	list->loadMore();
+}
+
 void Open(not_null<Window::SessionController*> controller) {
 	controller->hideLayer(anim::type::instant);
 	Reels::Close(controller); // one full-window surface at a time
+	Storage::Set(&controller->session(), kUsedKey, true);
 	auto &holder = HolderFor(controller);
-	if (!holder.feed) {
-		holder.feed = std::make_unique<Reels::Feed>(&controller->session());
-		holder.list = std::make_unique<List>(holder.feed.get(), u"/v1/videos"_q, kPageSize);
-	}
+	EnsureList(controller, holder);
 	if (holder.view) {
 		holder.view->raise();
 		holder.view->setFocus();

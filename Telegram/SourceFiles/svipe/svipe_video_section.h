@@ -23,6 +23,10 @@ void Close(not_null<Window::SessionController*> controller);
 [[nodiscard]] rpl::producer<bool> ShownValue(
 	not_null<Window::SessionController*> controller);
 
+// Android's SvipeVideoWarmer: have the first screen ready before the tab is opened — the first page
+// fetched and its first cards resolved — for someone who has opened Video before.
+void Warm(not_null<Window::SessionController*> controller);
+
 // Debug aid: open the first video of the grid once the list has one.
 void DebugOpenFirst(not_null<Window::SessionController*> controller);
 

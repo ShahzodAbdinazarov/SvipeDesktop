@@ -287,6 +287,14 @@ Session::Session(
 	// Delayed so it does not compete with the requests a session makes as it starts.
 	base::call_delayed(5000, this, [=] {
 		Svipe::SettingsSync::Pull(this);
+		if (const auto window = Core::App().activePrimaryWindow()) {
+			if (const auto controller = window->sessionController()) {
+				if (&controller->session() == this) {
+					Svipe::Reels::Warm(controller);
+					Svipe::Video::Warm(controller);
+				}
+			}
+		}
 #ifdef _DEBUG
 		if (QFile::exists(cWorkingDir() + u"tdata/svipe_reels_selftest"_q)) {
 			Svipe::Reels::SelfTest(this);
