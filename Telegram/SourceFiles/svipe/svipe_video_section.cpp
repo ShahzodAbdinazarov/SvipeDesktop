@@ -508,7 +508,14 @@ public:
 	[[nodiscard]] rpl::producer<std::shared_ptr<Item>> openRequests() const {
 		return _openRequests.events();
 	}
+	[[nodiscard]] rpl::producer<bool> fullscreenRequests() const {
+		return _fullscreenRequests.events();
+	}
 	void setViewportHeight(int height);
+	void setFullscreen(bool fullscreen);
+	[[nodiscard]] bool fullscreen() const {
+		return _fullscreen;
+	}
 
 protected:
 	int resizeGetHeight(int newWidth) override;
@@ -516,6 +523,7 @@ protected:
 	void mouseMoveEvent(QMouseEvent *e) override;
 	void mousePressEvent(QMouseEvent *e) override;
 	void mouseReleaseEvent(QMouseEvent *e) override;
+	void mouseDoubleClickEvent(QMouseEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
 	void visibleTopBottomUpdated(int visibleTop, int visibleBottom) override;
 
@@ -595,6 +603,8 @@ private:
 	int _pressedRelated = -1;
 	bool _controlsShown = true;
 	rpl::event_stream<std::shared_ptr<Item>> _openRequests;
+	rpl::event_stream<bool> _fullscreenRequests;
+	bool _fullscreen = false;
 
 };
 
@@ -639,6 +649,14 @@ void WatchPage::setViewportHeight(int height) {
 	if (_viewportHeight != height) {
 		_viewportHeight = height;
 		resizeToWidth(width());
+	}
+}
+
+void WatchPage::setFullscreen(bool fullscreen) {
+	if (_fullscreen != fullscreen) {
+		_fullscreen = fullscreen;
+		resizeToWidth(width());
+		update();
 	}
 }
 
@@ -778,17 +796,8 @@ void WatchPage::check() {
 }
 
 void WatchPage::openFullscreen() {
-	// The real fullscreen player is Telegram's own media viewer, at the same position.
-	withMessage([=](not_null<HistoryItem*> message) {
-		if (_instance && _instance->active()) {
-			_userPaused = true;
-			check();
-		}
-		_controller->openDocument(
-			_item->document,
-			true,
-			{ .id = message->fullId() });
-	});
+	// Our own player, the whole screen: it needs no Telegram message, it keeps playing where it is.
+	_fullscreenRequests.fire(!_fullscreen);
 }
 
 void WatchPage::withMessage(Fn<void(not_null<HistoryItem*>)> callback) {
@@ -822,6 +831,15 @@ void WatchPage::syncRelated() {
 
 WatchPage::Layout WatchPage::computeLayout(int width) const {
 	auto l = Layout();
+	if (_fullscreen) {
+		l.player = QRect(0, 0, width, std::max(_viewportHeight, S(200)));
+		const auto bar = S(48);
+		l.controls = QRect(0, l.player.height() - bar, width, bar);
+		l.playButton = QRect(S(12), l.controls.y() + S(8), S(32), S(32));
+		l.fullscreen = QRect(width - S(48), l.controls.y() + S(8), S(32), S(32));
+		l.seek = QRect(0, l.controls.y() - S(6), width, S(12));
+		return l;
+	}
 	const auto padding = S(24);
 	const auto wide = (width >= S(1000));
 	l.relatedWidth = wide ? S(400) : (width - 2 * padding);
@@ -896,6 +914,9 @@ WatchPage::Layout WatchPage::computeLayout(int width) const {
 
 int WatchPage::resizeGetHeight(int newWidth) {
 	_layout = computeLayout(newWidth);
+	if (_fullscreen) {
+		return _layout.player.height();
+	}
 	const auto relatedBottom = _layout.relatedY
 		+ int(_relatedCards.size()) * _layout.relatedRow;
 	const auto mainBottom = std::max({
@@ -927,7 +948,8 @@ void WatchPage::visibleTopBottomUpdated(int visibleTop, int visibleBottom) {
 void WatchPage::paintPlayer(Painter &p) {
 	const auto &r = _layout.player;
 	auto clip = QPainterPath();
-	clip.addRoundedRect(r, S(12), S(12));
+	const auto radius = _fullscreen ? 0 : S(12);
+	clip.addRoundedRect(r, radius, radius);
 	p.save();
 	p.setClipPath(clip);
 	p.fillRect(r, QColor(0, 0, 0));
@@ -1021,8 +1043,11 @@ void WatchPage::paintPlayer(Painter &p) {
 
 void WatchPage::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
-	p.fillRect(e->rect(), st::windowBg);
+	p.fillRect(e->rect(), _fullscreen ? QColor(0, 0, 0) : st::windowBg->c);
 	paintPlayer(p);
+	if (_fullscreen) {
+		return;
+	}
 	const auto &l = _layout;
 
 	if (!_title.isEmpty()) {
@@ -1136,6 +1161,9 @@ WatchPage::Hit WatchPage::hitAt(QPoint point, int *related) const {
 		if (l.fullscreen.contains(point)) return Hit::Fullscreen;
 		return Hit::Player;
 	}
+	if (_fullscreen) {
+		return Hit::None;
+	}
 	const auto channel = ChannelOf(_session, *_item);
 	if (l.subscribe.contains(point) && (!channel || !channel->amIn())) return Hit::Subscribe;
 	if (l.channel.contains(point)) return Hit::Channel;
@@ -1185,6 +1213,15 @@ void WatchPage::mousePressEvent(QMouseEvent *e) {
 		const auto &r = _layout.player;
 		seekTo((e->pos().x() - r.x()) / float64(std::max(r.width(), 1)));
 	}
+}
+
+void WatchPage::mouseDoubleClickEvent(QMouseEvent *e) {
+	if (e->button() == Qt::LeftButton && hitAt(e->pos()) == Hit::Player) {
+		togglePause(); // undo the first click's pause: a double click means fullscreen, as on YouTube
+		openFullscreen();
+		return;
+	}
+	mousePressEvent(e);
 }
 
 void WatchPage::mouseReleaseEvent(QMouseEvent *e) {
@@ -1271,6 +1308,7 @@ public:
 
 	void openVideo(std::shared_ptr<Item> item);
 	void back();
+	void placeIn(QSize body);
 
 protected:
 	void resizeEvent(QResizeEvent *e) override;
@@ -1283,6 +1321,10 @@ private:
 	object_ptr<Ui::ScrollArea> _browse;
 	object_ptr<Ui::ScrollArea> _watch = { nullptr };
 	QPointer<WatchPage> _page;
+	bool _fullscreen = false;
+	bool _windowWasFullScreen = false;
+
+	void setFullscreen(bool fullscreen);
 
 };
 
@@ -1307,6 +1349,7 @@ Widget::Widget(
 }
 
 void Widget::openVideo(std::shared_ptr<Item> item) {
+	setFullscreen(false);
 	_page = nullptr;
 	_watch.destroy();
 	_watch.create(this, st::defaultScrollArea);
@@ -1316,6 +1359,9 @@ void Widget::openVideo(std::shared_ptr<Item> item) {
 		_feed,
 		item));
 	_page = page.data();
+	page->fullscreenRequests() | rpl::on_next([=](bool fullscreen) {
+		setFullscreen(fullscreen);
+	}, page->lifetime());
 	page->openRequests() | rpl::on_next([=](std::shared_ptr<Item> next) {
 		// A related video replaces this page; back still returns to the grid.
 		crl::on_main(this, [=] { openVideo(next); });
@@ -1328,7 +1374,45 @@ void Widget::openVideo(std::shared_ptr<Item> item) {
 	setFocus();
 }
 
+void Widget::placeIn(QSize body) {
+	const auto left = (_fullscreen || !_controller->hasFiltersMenu())
+		? 0
+		: st::windowFiltersWidth;
+	setGeometry(QRect(left, 0, body.width() - left, body.height()));
+}
+
+void Widget::setFullscreen(bool fullscreen) {
+	if (_fullscreen == fullscreen) {
+		return;
+	}
+	_fullscreen = fullscreen;
+	const auto window = _controller->widget();
+	if (fullscreen) {
+		_windowWasFullScreen = window->isFullScreen();
+		if (!_windowWasFullScreen) {
+			window->showFullScreen();
+		}
+	} else if (!_windowWasFullScreen) {
+		window->showNormal();
+	}
+	if (_watch) {
+		_watch->scrollToY(0);
+	}
+	if (_page) {
+		_page->setFullscreen(fullscreen);
+	}
+	if (parentWidget()) {
+		placeIn(parentWidget()->size());
+	}
+	raise();
+	setFocus();
+}
+
 void Widget::back() {
+	if (_fullscreen) {
+		setFullscreen(false);
+		return;
+	}
 	if (_watch) {
 		_page = nullptr;
 		_watch.destroy();
@@ -1473,8 +1557,7 @@ void Open(not_null<Window::SessionController*> controller) {
 		body->sizeValue(),
 		rpl::single(rpl::empty) | rpl::then(controller->filtersMenuChanged())
 	) | rpl::on_next([=](QSize size, auto) {
-		const auto left = controller->hasFiltersMenu() ? st::windowFiltersWidth : 0;
-		view->setGeometry(QRect(left, 0, size.width() - left, size.height()));
+		view->placeIn(size);
 	}, view->lifetime());
 	view->show();
 	view->raise();
