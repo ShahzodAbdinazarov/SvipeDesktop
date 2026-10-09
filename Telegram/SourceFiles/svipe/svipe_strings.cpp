@@ -255,7 +255,7 @@ Translations Lookup(Str key) {
 		"Arxivdagi rasmlar o'chirildi",
 		"Архивные фото удалены" };
 	// Android's MainTabsReels and the SvipeReels* lines, verbatim.
-	case Str::ReelsTitle: return { "Clips", "Clips", "Clips" };
+	case Str::ReelsTitle: return { "Lavha", "Lavha", "Lavha" };
 	case Str::ReelsLoadingFeed: return {
 		"Loading feed…",
 		"Lenta yuklanmoqda…",
