@@ -39,6 +39,8 @@ void List::loadMore() {
 		return;
 	}
 	_loading = true;
+	const auto startedAt = crl::now();
+	LOG(("Svipe Video: %1 page from %2 (generation %3)").arg(_path).arg(_offset).arg(_generation));
 	if (_items.empty()) {
 		_status = Tr(Str::ReelsLoadingFeed);
 		_updates.fire({});
@@ -71,10 +73,17 @@ void List::loadMore() {
 			retry();
 			return;
 		}
+		LOG(("Svipe Video: token after %1 ms (%2)").arg(crl::now() - startedAt).arg(token.isEmpty() ? "none" : "ok"));
 		const auto separator = _path.contains('?') ? '&' : '?';
 		const auto path = _path + separator
 			+ u"limit=%1&offset=%2"_q.arg(_pageSize).arg(_offset);
 		Api::Get(path, token, [=](QJsonObject result, int code) {
+			LOG(("Svipe Video: %1 -> %2 in %3 ms, %4 items, current %5"
+				).arg(path
+				).arg(code
+				).arg(crl::now() - startedAt
+				).arg(result.value(u"items"_q).toArray().size()
+				).arg(Logs::b(weak && generation == _generation)));
 			if (!weak || generation != _generation) {
 				return;
 			}

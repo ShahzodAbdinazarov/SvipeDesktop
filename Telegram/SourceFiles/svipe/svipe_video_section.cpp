@@ -1401,6 +1401,10 @@ constexpr auto kWarmResolve = 6; // the cards on the first screen
 const auto kUsedKey = u"svipe_video_used"_q;
 
 void EnsureList(not_null<Window::SessionController*> controller, Holder &holder) {
+	LOG(("Svipe Video: ensure list for controller %1, has list %2, view %3"
+		).arg(quintptr(controller.get())
+		).arg(Logs::b(holder.list != nullptr)
+		).arg(Logs::b(holder.view != nullptr)));
 	if (!holder.feed) {
 		holder.feed = std::make_unique<Reels::Feed>(&controller->session());
 	}
