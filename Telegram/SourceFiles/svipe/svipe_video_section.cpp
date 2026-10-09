@@ -34,6 +34,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "ui/text/text.h"
 #include "ui/ui_utility.h"
 #include "ui/userpic_view.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/scroll_area.h"
 #include "ui/text/text_utilities.h"
 
@@ -41,6 +42,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include <QtGui/QGuiApplication>
 #include "window/main_window.h"
 #include "window/window_session_controller.h"
+#include "styles/style_info.h"
 #include "styles/style_layers.h"
 #include "styles/style_widgets.h"
 #include "styles/style_window.h"
@@ -1308,6 +1310,7 @@ public:
 
 	void openVideo(std::shared_ptr<Item> item);
 	void back();
+	void showGrid();
 	void placeIn(QSize body);
 
 protected:
@@ -1320,8 +1323,11 @@ private:
 	const not_null<Reels::Feed*> _feed;
 	object_ptr<Ui::ScrollArea> _browse;
 	object_ptr<Ui::ScrollArea> _watch = { nullptr };
+	object_ptr<Ui::IconButton> _back = { nullptr };
 	QPointer<WatchPage> _page;
 	bool _fullscreen = false;
+
+	void layoutWatch();
 	bool _windowWasFullScreen = false;
 
 	void setFullscreen(bool fullscreen);
@@ -1366,11 +1372,46 @@ void Widget::openVideo(std::shared_ptr<Item> item) {
 		// A related video replaces this page; back still returns to the grid.
 		crl::on_main(this, [=] { openVideo(next); });
 	}, page->lifetime());
-	_watch->setGeometry(rect());
-	page->setViewportHeight(height());
-	page->resizeToWidth(width());
+	if (!_back) {
+		_back.create(this, st::infoTopBarBack);
+		_back->setClickedCallback([=] { showGrid(); });
+	}
+	layoutWatch();
 	_watch->show();
+	_back->show();
+	_back->raise();
 	_browse->hide();
+	setFocus();
+}
+
+void Widget::layoutWatch() {
+	if (!_watch) {
+		return;
+	}
+	// A back bar above the page, as YouTube's header: the way back to the grid without a keyboard.
+	const auto bar = _fullscreen ? 0 : st::infoTopBarHeight;
+	if (_back) {
+		_back->setVisible(!_fullscreen);
+		_back->moveToLeft(0, 0);
+	}
+	_watch->setGeometry(0, bar, width(), height() - bar);
+	if (_page) {
+		_page->setViewportHeight(height() - bar);
+		_page->resizeToWidth(width());
+	}
+}
+
+void Widget::showGrid() {
+	if (_fullscreen) {
+		setFullscreen(false);
+	}
+	if (_watch) {
+		_page = nullptr;
+		_watch.destroy();
+		_back.destroy();
+		_browse->show();
+		update();
+	}
 	setFocus();
 }
 
@@ -1401,6 +1442,7 @@ void Widget::setFullscreen(bool fullscreen) {
 	if (_page) {
 		_page->setFullscreen(fullscreen);
 	}
+	layoutWatch();
 	if (parentWidget()) {
 		placeIn(parentWidget()->size());
 	}
@@ -1414,10 +1456,7 @@ void Widget::back() {
 		return;
 	}
 	if (_watch) {
-		_page = nullptr;
-		_watch.destroy();
-		_browse->show();
-		setFocus();
+		showGrid();
 	} else {
 		Close(_controller);
 	}
@@ -1428,13 +1467,7 @@ void Widget::resizeEvent(QResizeEvent *e) {
 	if (const auto grid = static_cast<Grid*>(_browse->widget())) {
 		grid->resizeToWidth(width());
 	}
-	if (_watch) {
-		_watch->setGeometry(rect());
-		if (_page) {
-			_page->setViewportHeight(height());
-			_page->resizeToWidth(width());
-		}
-	}
+	layoutWatch();
 }
 
 void Widget::paintEvent(QPaintEvent *e) {
@@ -1542,8 +1575,8 @@ void Open(not_null<Window::SessionController*> controller) {
 	auto &holder = HolderFor(controller);
 	EnsureList(controller, holder);
 	if (holder.view) {
+		holder.view->showGrid(); // the Video button again is YouTube's logo: home
 		holder.view->raise();
-		holder.view->setFocus();
 		return;
 	}
 	const auto body = controller->widget()->bodyWidget();

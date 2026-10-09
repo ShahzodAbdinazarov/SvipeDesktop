@@ -510,9 +510,7 @@ void FiltersMenu::setupSvipeClips() {
 		}
 	});
 	_svipeVideo->setClickedCallback([=] {
-		if (!Svipe::Video::Shown(_session)) {
-			Svipe::Video::Open(_session);
-		}
+		Svipe::Video::Open(_session); // when already open: back to the grid, like YouTube's logo
 	});
 	// Built from inside refresh(): only later changes may refresh again.
 	const auto apply = [=](bool clips, bool video, bool rebuild) {
