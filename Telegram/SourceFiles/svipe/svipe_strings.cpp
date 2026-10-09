@@ -277,9 +277,9 @@ Translations Lookup(Str key) {
 		"Hozircha video yo'q",
 		"Пока нет видео" };
 	case Str::ReelsSavedChannel: return {
-		"Saved Clips",
-		"Saqlangan Clips",
-		"Сохранённые Clips" };
+		"Saved Lavha",
+		"Saqlangan lavhalar",
+		"Сохранённые Lavha" };
 	case Str::ReelsSave: return { "Save", "Saqlash", "Сохранить" };
 	case Str::ReelsShare: return { "Share", "Ulashish", "Поделиться" };
 	case Str::ReelsGoToChannel: return {

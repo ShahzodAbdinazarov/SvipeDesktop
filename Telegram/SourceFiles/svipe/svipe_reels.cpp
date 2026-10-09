@@ -63,12 +63,22 @@ const auto kBlockedUntilKey = u"svipe_resolve_blocked_until"_q;
 const auto kSavedKey = u"svipe_saved_reels_channel"_q;
 
 // Every name the phone may have given the channel (Android: SvipeSavedReelsChannel).
-[[nodiscard]] QStringList SavedClipsTitles() {
+// The tab was Clips before it was Lavha: a channel made under the old name is still ours, and is
+// renamed the first time it is found (Android does the same, so both devices keep one channel).
+[[nodiscard]] QStringList SavedClipsOldTitles() {
 	return {
 		u"Saved Clips"_q,
 		u"Saqlangan Clips"_q,
 		QString::fromUtf8("Сохранённые Clips"),
 	};
+}
+
+[[nodiscard]] QStringList SavedClipsTitles() {
+	return QStringList{
+		u"Saved Lavha"_q,
+		u"Saqlangan lavhalar"_q,
+		QString::fromUtf8("Сохранённые Lavha"),
+	} + SavedClipsOldTitles();
 }
 
 [[nodiscard]] QString Key(uint64 channelId, MsgId messageId) {
@@ -776,6 +786,14 @@ ChannelData *Feed::findSavedChannel() const {
 
 void Feed::ensureSavedChannel(Fn<void(ChannelData*)> done) {
 	if (const auto channel = findSavedChannel()) {
+		if (SavedClipsOldTitles().contains(channel->name())) {
+			_session->api().request(MTPchannels_EditTitle(
+				channel->inputChannel(),
+				MTP_string(Tr(Str::ReelsSavedChannel))
+			)).done([=](const MTPUpdates &result) {
+				_session->api().applyUpdates(result);
+			}).send();
+		}
 		Storage::Set(
 			_session,
 			kSavedKey,
