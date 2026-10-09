@@ -413,6 +413,9 @@ void Grid::retitle(const std::shared_ptr<Item> &item) {
 }
 
 void Grid::paintEvent(QPaintEvent *e) {
+	if (_cards.size() != _list->items().size()) {
+		sync(); // never paint "Loading" over a list that has arrived
+	}
 	auto p = Painter(this);
 	const auto clip = e->rect();
 	p.fillRect(clip, st::windowBg);
@@ -1401,11 +1404,20 @@ void EnsureList(not_null<Window::SessionController*> controller, Holder &holder)
 	if (!holder.feed) {
 		holder.feed = std::make_unique<Reels::Feed>(&controller->session());
 	}
+	auto freshFor = kFreshFor;
+#ifdef _DEBUG
+	if (QFile::exists(cWorkingDir() + u"tdata/svipe_fresh_short"_q)) {
+		freshFor = crl::time(10000);
+	}
+#endif // _DEBUG
 	const auto stale = holder.list
 		&& !holder.view
-		&& (crl::now() - holder.listAt > kFreshFor);
-	if (!holder.list || stale) {
+		&& (crl::now() - holder.listAt > freshFor);
+	if (!holder.list) {
 		holder.list = std::make_unique<List>(holder.feed.get(), u"/v1/videos"_q, kPageSize);
+		holder.listAt = crl::now();
+	} else if (stale) {
+		holder.list->reset(); // in place: nothing that holds the list can be left on a dead one
 		holder.listAt = crl::now();
 	}
 }

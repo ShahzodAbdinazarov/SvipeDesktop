@@ -305,10 +305,13 @@ Session::Session(
 					auto flag = QFile(cWorkingDir() + u"tdata/svipe_open_video"_q);
 					const auto watch = flag.open(QIODevice::ReadOnly)
 						&& flag.readAll().trimmed() == "watch";
-					Svipe::Video::Open(controller);
-					if (watch) {
-						Svipe::Video::DebugOpenFirst(controller);
-					}
+					const auto late = QFile::exists(cWorkingDir() + u"tdata/svipe_fresh_short"_q);
+					base::call_delayed(late ? 20000 : 0, controller, [=] {
+						Svipe::Video::Open(controller);
+						if (watch) {
+							Svipe::Video::DebugOpenFirst(controller);
+						}
+					});
 				}
 			}
 		}

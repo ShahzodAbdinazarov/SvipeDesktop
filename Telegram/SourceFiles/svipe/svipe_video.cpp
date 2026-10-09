@@ -45,8 +45,9 @@ void List::loadMore() {
 	}
 	const auto session = _feed->session();
 	const auto weak = base::make_weak(this);
+	const auto generation = _generation;
 	Auth::EnsureToken(session, [=](QString token) {
-		if (!weak) {
+		if (!weak || generation != _generation) {
 			return;
 		}
 		const auto retry = [=] {
@@ -74,7 +75,7 @@ void List::loadMore() {
 		const auto path = _path + separator
 			+ u"limit=%1&offset=%2"_q.arg(_pageSize).arg(_offset);
 		Api::Get(path, token, [=](QJsonObject result, int code) {
-			if (!weak) {
+			if (!weak || generation != _generation) {
 				return;
 			}
 			if (!result.contains(u"items"_q)) {
@@ -120,6 +121,18 @@ void List::loadMore() {
 			_updates.fire({});
 		});
 	});
+}
+
+void List::reset() {
+	++_generation;
+	_items.clear();
+	_offset = 0;
+	_failures = 0;
+	_loading = false;
+	_exhausted = false;
+	_status = QString();
+	_updates.fire({});
+	loadMore();
 }
 
 void List::remove(const std::shared_ptr<Item> &item) {

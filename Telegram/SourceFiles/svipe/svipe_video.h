@@ -40,6 +40,8 @@ public:
 	}
 
 	void loadMore();
+	// Start over from the first page in place: whoever holds this list keeps a valid one.
+	void reset();
 	// Drop one reference (a seed that came back in its own related list, a dead post).
 	void remove(const std::shared_ptr<Item> &item);
 
@@ -50,6 +52,7 @@ private:
 	std::vector<std::shared_ptr<Item>> _items;
 	int _offset = 0;
 	int _failures = 0;
+	int _generation = 0; // a reset orphans whatever request was in flight
 	bool _loading = false;
 	bool _exhausted = false;
 	QString _status;
