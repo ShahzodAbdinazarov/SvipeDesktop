@@ -689,15 +689,11 @@ void Widget::activate(Button button) {
 }
 
 void Widget::toggleLike() {
-	const auto item = current();
-	withMessage([=](not_null<HistoryItem*> message) {
-		const auto heart = Data::ReactionId{ kLikeEmoji };
-		const auto liked = ranges::contains(
-			message->chosenReactions(),
-			heart);
-		message->toggleReaction(heart, HistoryReactionSource::Selector);
-		_state->feed->sendEvent(*item, liked ? u"UNLIKE"_q : u"LIKE"_q);
-	});
+	// Svipe's own like, kept on our server: no message, no resolve.
+	if (const auto item = current()) {
+		_state->feed->toggleLike(item);
+		update();
+	}
 }
 
 void Widget::openComments() {
@@ -738,16 +734,18 @@ void Widget::share() {
 }
 
 void Widget::save() {
-	withMessage([=](not_null<HistoryItem*> message) {
-		const auto weak = base::make_weak(this);
-		_state->feed->save(message, [=](ChannelData *channel) {
-			if (!weak) {
-				return;
-			}
-			controller()->showToast(channel
-				? (Tr(Str::ReelsSavedChannel) + u" ✓"_q)
-				: Tr(Str::ReelsActionUnavailable));
-		});
+	const auto item = current();
+	if (!item) {
+		return;
+	}
+	const auto weak = base::make_weak(this);
+	_state->feed->saveDocument(item, [=](ChannelData *channel) {
+		if (!weak) {
+			return;
+		}
+		controller()->showToast(channel
+			? (Tr(Str::ReelsSavedChannel) + u" ✓"_q)
+			: Tr(Str::ReelsActionUnavailable));
 	});
 }
 
@@ -850,16 +848,15 @@ void Widget::report() {
 }
 
 void Widget::subscribe() {
-	const auto item = current();
-	withMessage([=](not_null<HistoryItem*> message) {
-		if (const auto channel = message->history()->peer->asChannel()) {
-			if (!channel->amIn()) {
-				channel->session().api().joinChannel(channel);
-				_state->feed->sendEvent(*item, u"FOLLOW"_q);
-				controller()->showToast(Tr(Str::ReelsSubscribed));
-			}
+	// Svipe's own subscription, kept on our server: no join, no resolve.
+	if (const auto item = current()) {
+		const auto was = _state->feed->following(item->channelId);
+		_state->feed->toggleFollow(item);
+		if (!was) {
+			controller()->showToast(Tr(Str::ReelsSubscribed));
 		}
-	});
+		update();
+	}
 }
 
 void Widget::paintCard(Painter &p, const Layout &l) {
@@ -951,7 +948,7 @@ void Widget::paintCard(Painter &p, const Layout &l) {
 	}
 	left += userpicSize + S(10);
 	const auto nameTop = top + (userpicSize - st::semiboldFont->height) / 2;
-	const auto subscribeText = (channel && !channel->amIn())
+	const auto subscribeText = !_state->feed->following(item->channelId)
 		? (u" • "_q + Tr(Str::ReelsSubscribe))
 		: QString();
 	const auto subscribeWidth = subscribeText.isEmpty()
@@ -1034,14 +1031,10 @@ void Widget::paintRail(Painter &p, const Layout &l) {
 		return;
 	}
 	const auto message = currentMessage();
-	auto likes = 0;
-	auto liked = false;
-	if (message) {
-		for (const auto &reaction : message->reactions()) {
-			likes += reaction.count;
-			liked = liked || reaction.my;
-		}
-	}
+	const auto item = current();
+	_state->feed->loadSocial(item);
+	const auto likes = item->likes;
+	const auto liked = item->liked;
 	const auto comments = message ? std::max(message->repliesCount(), 0) : 0;
 	const auto white = QColor(255, 255, 255);
 	const auto hovered = [&](Button button) {

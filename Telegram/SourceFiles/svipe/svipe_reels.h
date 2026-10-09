@@ -50,6 +50,12 @@ struct Item {
 	bool resolving = false;
 	bool failed = false;
 	std::vector<Fn<void()>> waiters;
+
+	// Svipe's own like on this post (GET /v1/videos/state), not a Telegram reaction.
+	int likes = 0;
+	bool liked = false;
+	bool socialLoaded = false;
+	bool socialLoading = false;
 };
 
 class Feed final : public base::has_weak_ptr {
@@ -76,9 +82,9 @@ public:
 
 	void loadMore();
 
-	// `urgent` is the clip on screen: it resolves a username at the front of the lane. `background`
-	// lets a list card (the Video tab, as on Android) use the lane too, behind everything else;
-	// the Clips read-ahead passes neither and never spends a resolve.
+	// Playback never spends a resolveUsername: a known channel, else the post's link preview
+	// (getWebPage), else the item fails and leaves its list. `urgent` / `background` only say
+	// whether a failed preview is final (on screen, a list card) or worth another try later.
 	void resolve(
 		const std::shared_ptr<Item> &item,
 		bool urgent,
@@ -94,6 +100,19 @@ public:
 	// The real channel message for an item that has its video from a link preview, but only when the
 	// channel is already addressable — never spends a resolve. For list cards: caption, views, date.
 	void upgradeToMessage(const std::shared_ptr<Item> &item, Fn<void()> done);
+
+	// Svipe's own likes and subscriptions, kept on our server: none of them needs the channel's
+	// access_hash, so none of them spends a resolveUsername. The state is loaded once per item;
+	// toggles are optimistic and travel as LIKE / UNLIKE / FOLLOW / UNFOLLOW events.
+	void loadSocial(const std::shared_ptr<Item> &item);
+	void toggleLike(const std::shared_ptr<Item> &item);
+	void toggleFollow(const std::shared_ptr<Item> &item);
+	[[nodiscard]] bool following(uint64 channelId) const;
+	[[nodiscard]] int followers(uint64 channelId) const;
+
+	// Save the video itself (the document a link preview gave) into "Saved Clips": no forward, so
+	// no source message and no resolve. The post link rides along as the caption.
+	void saveDocument(const std::shared_ptr<Item> &item, Fn<void(ChannelData*)> done);
 
 	// Android's blockChannel: its clips leave the feed now and never come back.
 	void block(uint64 channelId);
@@ -115,6 +134,12 @@ public:
 	[[nodiscard]] static std::shared_ptr<Item> ParseItem(const QJsonObject &o);
 
 private:
+	struct Follow {
+		bool following = false;
+		int followers = 0;
+	};
+	base::flat_map<uint64, Follow> _follows;
+
 	struct UsernameRequest {
 		std::shared_ptr<Item> item;
 		Fn<void(bool)> done;

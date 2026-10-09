@@ -607,6 +607,7 @@ private:
 	rpl::event_stream<std::shared_ptr<Item>> _openRequests;
 	rpl::event_stream<bool> _fullscreenRequests;
 	bool _fullscreen = false;
+	bool _socialWatched = false;
 
 };
 
@@ -676,6 +677,13 @@ void WatchPage::refreshTexts() {
 }
 
 void WatchPage::start() {
+	if (!_socialWatched) {
+		_socialWatched = true;
+		_feed->loadSocial(_item);
+		_feed->updates() | rpl::on_next([=] {
+			update();
+		}, lifetime());
+	}
 	if (!_item->document) {
 		const auto weak = base::make_weak(this);
 		_feed->resolve(_item, true, [=] {
@@ -870,7 +878,9 @@ WatchPage::Layout WatchPage::computeLayout(int width) const {
 	y += titleHeight + S(12);
 	l.channel = QRect(padding, y, mainWidth / 2, S(40));
 	const auto pillHeight = S(36);
-	const auto subscribeWidth = st::semiboldFont->width(Tr(Str::ReelsSubscribe)) + S(32);
+	const auto subscribeWidth = std::max(
+		st::semiboldFont->width(Tr(Str::ReelsSubscribe)),
+		st::semiboldFont->width(Tr(Str::ReelsSubscribed))) + S(32);
 	l.subscribe = QRect(
 		padding + S(40) + S(12) + std::min(S(220), mainWidth / 3),
 		y + (S(40) - pillHeight) / 2,
@@ -1079,18 +1089,15 @@ void WatchPage::paintEvent(QPaintEvent *e) {
 		p.setPen(accent ? st::activeButtonFg : st::windowFg);
 		p.drawText(r, Qt::AlignCenter, text);
 	};
-	if (!channel || !channel->amIn()) {
-		pill(l.subscribe, Tr(Str::ReelsSubscribe), true, _over == Hit::Subscribe);
-	}
-	// Like with its count, the ❤ reaction.
-	auto likes = 0;
-	auto liked = false;
-	if (const auto message = MessageOf(_session, *_item)) {
-		for (const auto &reaction : message->reactions()) {
-			likes += reaction.count;
-			liked = liked || reaction.my;
-		}
-	}
+	// Svipe's own subscribe and like (our server), never Telegram's join or reaction.
+	const auto following = _feed->following(_item->channelId);
+	pill(
+		l.subscribe,
+		following ? Tr(Str::ReelsSubscribed) : Tr(Str::ReelsSubscribe),
+		!following,
+		_over == Hit::Subscribe);
+	const auto likes = _item->likes;
+	const auto liked = _item->liked;
 	const auto likeText = QString::fromUtf8("\xe2\x9d\xa4 ")
 		+ (likes > 0 ? Lang::FormatCountToShort(likes).string : QString());
 	pill(l.like, likeText.trimmed(), liked, _over == Hit::Like);
@@ -1167,7 +1174,7 @@ WatchPage::Hit WatchPage::hitAt(QPoint point, int *related) const {
 		return Hit::None;
 	}
 	const auto channel = ChannelOf(_session, *_item);
-	if (l.subscribe.contains(point) && (!channel || !channel->amIn())) return Hit::Subscribe;
+	if (l.subscribe.contains(point)) return Hit::Subscribe;
 	if (l.channel.contains(point)) return Hit::Channel;
 	if (l.like.contains(point)) return Hit::Like;
 	if (l.share.contains(point)) return Hit::Share;
@@ -1250,23 +1257,10 @@ void WatchPage::mouseReleaseEvent(QMouseEvent *e) {
 		});
 		break;
 	case Hit::Subscribe:
-		withMessage([=](not_null<HistoryItem*> message) {
-			if (const auto channel = message->history()->peer->asChannel()) {
-				if (!channel->amIn()) {
-					channel->session().api().joinChannel(channel);
-					_feed->sendEvent(*_item, u"FOLLOW"_q);
-					_controller->showToast(Tr(Str::ReelsSubscribed));
-				}
-			}
-		});
+		_feed->toggleFollow(_item);
 		break;
 	case Hit::Like:
-		withMessage([=](not_null<HistoryItem*> message) {
-			const auto heart = Data::ReactionId{ kLikeEmoji };
-			const auto liked = ranges::contains(message->chosenReactions(), heart);
-			message->toggleReaction(heart, HistoryReactionSource::Selector);
-			_feed->sendEvent(*_item, liked ? u"UNLIKE"_q : u"LIKE"_q);
-		});
+		_feed->toggleLike(_item);
 		break;
 	case Hit::Share: {
 		QGuiApplication::clipboard()->setText(!_item->shareUrl.isEmpty()
@@ -1276,13 +1270,11 @@ void WatchPage::mouseReleaseEvent(QMouseEvent *e) {
 		_feed->sendEvent(*_item, u"SHARE"_q);
 	} break;
 	case Hit::Save:
-		withMessage([=](not_null<HistoryItem*> message) {
-			_feed->save(message, crl::guard(this, [=](ChannelData *channel) {
-				_controller->showToast(channel
-					? (Tr(Str::ReelsSavedChannel) + u" ✓"_q)
-					: Tr(Str::ReelsActionUnavailable));
-			}));
-		});
+		_feed->saveDocument(_item, crl::guard(this, [=](ChannelData *channel) {
+			_controller->showToast(channel
+				? (Tr(Str::ReelsSavedChannel) + u" ✓"_q)
+				: Tr(Str::ReelsActionUnavailable));
+		}));
 		break;
 	case Hit::More:
 		_captionExpanded = !_captionExpanded;

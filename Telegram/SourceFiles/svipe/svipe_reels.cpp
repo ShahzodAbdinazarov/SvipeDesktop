@@ -14,6 +14,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "data/data_session.h"
 #include "data/data_histories.h"
 #include "api/api_common.h"
+#include "api/api_sending.h"
 #include "data/data_web_page.h"
 #include "history/history_item.h"
 #include "main/main_session.h"
@@ -387,23 +388,16 @@ void Feed::resolve(
 		tryWebPage(item, [=](bool ok) {
 			if (!weak) {
 				return;
-			} else if (ok || (!urgent && !background)) {
-				// Read-ahead never spends a resolve; it gets another chance on screen.
-				if (!ok) {
-					item->resolving = false;
-					for (const auto &waiter : base::take(item->waiters)) {
-						waiter();
-					}
-				} else {
-					finish(item, true);
-				}
+			} else if (ok || urgent || background) {
+				// No resolveUsername for playback, ever: what a preview cannot give is dropped.
+				finish(item, ok);
 				return;
 			}
-			tryUsername(item, [=](bool ok) {
-				if (weak) {
-					finish(item, ok);
-				}
-			}, !urgent);
+			// Read-ahead gets another chance on screen.
+			item->resolving = false;
+			for (const auto &waiter : base::take(item->waiters)) {
+				waiter();
+			}
 		});
 	});
 }
@@ -656,6 +650,90 @@ void Feed::upgradeToMessage(const std::shared_ptr<Item> &item, Fn<void()> done) 
 		if (weak && ok && done) {
 			done();
 		}
+	});
+}
+
+void Feed::loadSocial(const std::shared_ptr<Item> &item) {
+	if (item->socialLoaded || item->socialLoading) {
+		return;
+	}
+	item->socialLoading = true;
+	const auto weak = base::make_weak(this);
+	const auto path = u"/v1/videos/state?channel_id=%1&message_id=%2"_q
+		.arg(item->channelId)
+		.arg(item->messageId.bare);
+	Auth::EnsureToken(_session, [=](QString token) {
+		if (!weak) {
+			return;
+		} else if (token.isEmpty()) {
+			item->socialLoading = false;
+			return;
+		}
+		Api::Get(path, token, [=](QJsonObject result, int code) {
+			if (!weak) {
+				return;
+			}
+			item->socialLoading = false;
+			if (!result.contains(u"likes"_q)) {
+				return;
+			}
+			item->socialLoaded = true;
+			item->likes = result.value(u"likes"_q).toInt();
+			item->liked = result.value(u"liked"_q).toBool();
+			_follows[item->channelId] = Follow{
+				.following = result.value(u"following"_q).toBool(),
+				.followers = result.value(u"followers"_q).toInt(),
+			};
+			_updates.fire({});
+		});
+	});
+}
+
+void Feed::toggleLike(const std::shared_ptr<Item> &item) {
+	item->liked = !item->liked;
+	item->likes = std::max(item->likes + (item->liked ? 1 : -1), 0);
+	sendEvent(*item, item->liked ? u"LIKE"_q : u"UNLIKE"_q);
+	_updates.fire({});
+}
+
+void Feed::toggleFollow(const std::shared_ptr<Item> &item) {
+	auto &follow = _follows[item->channelId];
+	follow.following = !follow.following;
+	follow.followers = std::max(follow.followers + (follow.following ? 1 : -1), 0);
+	sendEvent(*item, follow.following ? u"FOLLOW"_q : u"UNFOLLOW"_q);
+	_updates.fire({});
+}
+
+bool Feed::following(uint64 channelId) const {
+	const auto i = _follows.find(channelId);
+	return (i != end(_follows)) && i->second.following;
+}
+
+int Feed::followers(uint64 channelId) const {
+	const auto i = _follows.find(channelId);
+	return (i != end(_follows)) ? i->second.followers : 0;
+}
+
+void Feed::saveDocument(const std::shared_ptr<Item> &item, Fn<void(ChannelData*)> done) {
+	const auto document = item->document;
+	if (!document) {
+		done(nullptr);
+		return;
+	}
+	const auto link = !item->shareUrl.isEmpty()
+		? item->shareUrl
+		: u"https://t.me/%1/%2"_q.arg(item->username).arg(item->messageId.bare);
+	const auto weak = base::make_weak(this);
+	ensureSavedChannel([=](ChannelData *channel) {
+		if (!weak || !channel) {
+			done(nullptr);
+			return;
+		}
+		auto message = ::Api::MessageToSend(
+			::Api::SendAction(_session->data().history(channel)));
+		message.textWithTags = { link };
+		::Api::SendExistingDocument(std::move(message), document);
+		done(channel);
 	});
 }
 
