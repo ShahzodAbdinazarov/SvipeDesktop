@@ -23,6 +23,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "media/player/media_player_instance.h"
 #include "media/streaming/media_streaming_instance.h"
 #include "media/streaming/media_streaming_player.h"
+#include "svipe/svipe_channel_info.h"
 #include "svipe/svipe_reels.h"
 #include "svipe/svipe_reels_section.h"
 #include "svipe/svipe_storage.h"
@@ -116,16 +117,27 @@ void Upgrade(not_null<Reels::Feed*> feed, Card &card, QWidget *guard, Fn<void()>
 	return (channel && !channel->name().isEmpty()) ? channel : nullptr;
 }
 
+// The channel's name: Telegram's when the channel is known, else the public page's (no resolve),
+// else the handle.
+[[nodiscard]] QString ChannelName(
+		not_null<Main::Session*> session,
+		const Item &item) {
+	if (const auto channel = ChannelOf(session, item)) {
+		return channel->name();
+	} else if (const auto info = ChannelInfo::Lookup(item.username)) {
+		if (!info->title.isEmpty()) {
+			return info->title;
+		}
+	}
+	return u"@"_q + item.username;
+}
+
 // SvipeWideVideoCell.metaLine: "Channel · N views · date".
 [[nodiscard]] QString MetaLine(
 		not_null<Main::Session*> session,
 		const Item &item) {
 	auto parts = QStringList();
-	if (const auto channel = ChannelOf(session, item)) {
-		parts.push_back(channel->name());
-	} else {
-		parts.push_back(u"@"_q + item.username);
-	}
+	parts.push_back(ChannelName(session, item));
 	if (const auto message = MessageOf(session, item)) {
 		if (const auto views = message->viewsCount(); views > 0) {
 			parts.push_back(tr::lng_stories_views(
@@ -216,10 +228,12 @@ void PaintUserpic(
 	if (const auto channel = ChannelOf(session, *card.item)) {
 		channel->paintUserpic(p, card.userpic, x, y, size);
 	} else {
-		auto hq = PainterHighQualityEnabler(p);
-		p.setPen(Qt::NoPen);
-		p.setBrush(st::windowBgOver);
-		p.drawEllipse(QRect(x, y, size, size));
+		// The public page's picture: no resolve behind it (Android: SvipeChannelAvatar).
+		ChannelInfo::PaintUserpic(
+			p,
+			card.item->username,
+			QRect(x, y, size, size),
+			st::windowBgOver);
 	}
 }
 
@@ -286,6 +300,9 @@ Grid::Grid(
 , _feed(feed)
 , _list(list) {
 	setMouseTracking(true);
+	ChannelInfo::Updated() | rpl::on_next([=] {
+		update(); // a channel picture or name arrived from its public page
+	}, lifetime());
 	_list->updates() | rpl::on_next([=] {
 		sync();
 	}, lifetime());
@@ -624,6 +641,9 @@ WatchPage::WatchPage(
 , _self{ .item = _item }
 , _checkTimer([=] { check(); }) {
 	setMouseTracking(true);
+	ChannelInfo::Updated() | rpl::on_next([=] {
+		update(); // a channel picture or name arrived from its public page
+	}, lifetime());
 	_related = std::make_unique<List>(
 		feed,
 		u"/v1/videos/related?seed_channel_id=%1&seed_message_id=%2"_q
@@ -1072,7 +1092,7 @@ void WatchPage::paintEvent(QPaintEvent *e) {
 	p.setFont(st::semiboldFont);
 	p.setPen(st::windowFg);
 	const auto nameLeft = l.channel.x() + S(52);
-	const auto name = channel ? channel->name() : (u"@"_q + _item->username);
+	const auto name = ChannelName(_session, *_item);
 	p.drawText(
 		nameLeft,
 		l.channel.y() + (S(40) + st::semiboldFont->ascent - st::semiboldFont->descent) / 2,
@@ -1588,6 +1608,9 @@ void Open(not_null<Window::SessionController*> controller) {
 	view->raise();
 	view->setFocus();
 	holder.shown = true;
+	LOG(("Svipe Video: opened, geometry %1,%2 %3x%4, body %5x%6"
+		).arg(view->x()).arg(view->y()).arg(view->width()).arg(view->height()
+		).arg(body->width()).arg(body->height()));
 }
 
 void Close(not_null<Window::SessionController*> controller) {
@@ -1595,6 +1618,7 @@ void Close(not_null<Window::SessionController*> controller) {
 	if (i == end(Holders()) || !i->second.view) {
 		return;
 	}
+	LOG(("Svipe Video: close"));
 	auto view = base::take(i->second.view);
 	view->hide();
 	view = nullptr;

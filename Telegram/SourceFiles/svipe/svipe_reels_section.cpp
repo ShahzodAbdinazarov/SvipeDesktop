@@ -29,6 +29,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "media/player/media_player_instance.h"
 #include "media/streaming/media_streaming_instance.h"
 #include "media/streaming/media_streaming_player.h"
+#include "svipe/svipe_channel_info.h"
 #include "svipe/svipe_reels.h"
 #include "svipe/svipe_storage.h"
 #include "svipe/svipe_strings.h"
@@ -240,6 +241,15 @@ Widget::Widget(
 	setAttribute(Qt::WA_OpaquePaintEvent);
 	setMouseTracking(true);
 
+	ChannelInfo::Updated() | rpl::on_next([=](const QString &handle) {
+		// A channel picture or name arrived from its public page (no resolve).
+		if (const auto item = current()) {
+			if (item->username.compare(handle, Qt::CaseInsensitive) == 0) {
+				refreshTexts();
+			}
+		}
+		update();
+	}, lifetime());
 	_state->feed->updates() | rpl::on_next([=] {
 		if (!_playback && current()) {
 			startPlayback();
@@ -628,6 +638,7 @@ void Widget::preloadAhead() {
 void Widget::refreshTexts() {
 	const auto item = current();
 	const auto channel = currentChannel();
+	const auto info = item ? ChannelInfo::Lookup(item->username) : nullptr;
 	_title.setText(
 		st::semiboldTextStyle,
 		!item
@@ -636,6 +647,8 @@ void Widget::refreshTexts() {
 			? channel->name()
 			: !item->title.isEmpty()
 			? item->title
+			: (info && !info->title.isEmpty())
+			? info->title
 			: (u"@"_q + item->username));
 	_caption.setMarkedText(
 		st::defaultTextStyle,
@@ -941,10 +954,12 @@ void Widget::paintCard(Painter &p, const Layout &l) {
 	if (channel) {
 		channel->paintUserpic(p, _userpic, left, top, userpicSize);
 	} else {
-		p.setPen(Qt::NoPen);
-		p.setBrush(QColor(255, 255, 255, 60));
-		auto hq = PainterHighQualityEnabler(p);
-		p.drawEllipse(QRect(left, top, userpicSize, userpicSize));
+		// The public page's picture: no resolve behind it (Android: SvipeChannelAvatar).
+		ChannelInfo::PaintUserpic(
+			p,
+			item->username,
+			QRect(left, top, userpicSize, userpicSize),
+			QColor(255, 255, 255, 60));
 	}
 	left += userpicSize + S(10);
 	const auto nameTop = top + (userpicSize - st::semiboldFont->height) / 2;

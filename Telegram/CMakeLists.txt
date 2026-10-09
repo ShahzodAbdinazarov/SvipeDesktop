@@ -1991,6 +1991,8 @@ PRIVATE
     svipe/svipe_deleted_in_chat.h
     svipe/svipe_message_sync.cpp
     svipe/svipe_message_sync.h
+    svipe/svipe_channel_info.cpp
+    svipe/svipe_channel_info.h
     svipe/svipe_reels.cpp
     svipe/svipe_reels.h
     svipe/svipe_reels_section.cpp
