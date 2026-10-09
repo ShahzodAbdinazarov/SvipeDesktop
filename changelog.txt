@@ -1,3 +1,7 @@
+7.2.24 (10.10.26)
+
+- Svipe Desktop 1.0.12: Video — long videos from the Android app, laid out like YouTube: a grid with channel pictures, and a watch page with the player, fullscreen, related videos and a back arrow. The short-video tab is now called Lavha. Likes, subscriptions and saving work instantly, without waiting on Telegram.
+
 7.2.23 (08.10.26)
 
 - Svipe Desktop 1.0.11: Clips — the short-video feed from the Android app, on the left sidebar above All chats: like, comments, share, save, subscribe; the Telegram notifications chat shows its own photo.
