@@ -39,6 +39,8 @@ struct Item {
 	QString recId;
 	crl::time recAt = 0;
 	int feedPosition = 0;
+	int topicId = 0;
+	bool shortForm = false; // a reel from the shorts pipe (/v1/discover/*), drawn as a portrait tile
 	QByteArray inlineThumb; // Telegram's stripped blur from the list JSON (thumb_b64), if any
 
 	// Resolved.
@@ -81,6 +83,9 @@ public:
 	}
 
 	void loadMore();
+	// Android's ReelsActivity.ofDiscoverSeed: start from these clips (a tapped search result first)
+	// and continue with the feed conditioned on the first one (/v1/feed?seed_*).
+	void seed(std::vector<std::shared_ptr<Item>> items);
 
 	// Playback never spends a resolveUsername: a known channel, else the post's link preview
 	// (getWebPage), else the item fails and leaves its list. `urgent` / `background` only say
@@ -170,6 +175,9 @@ private:
 	const not_null<Main::Session*> _session;
 	std::vector<std::shared_ptr<Item>> _items;
 	QString _cursor;
+	uint64 _seedChannel = 0;
+	MsgId _seedMessage = 0;
+	int _seedTopic = 0;
 	bool _loading = false;
 	bool _exhausted = false;
 	int _emptyPages = 0;

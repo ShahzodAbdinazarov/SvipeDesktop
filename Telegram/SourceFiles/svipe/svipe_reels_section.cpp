@@ -121,6 +121,7 @@ namespace {
 struct Holder {
 	std::shared_ptr<State> state;
 	crl::time stateAt = 0;
+	bool seeded = false; // the state is a search result's continuation, not the Lavha feed
 	base::unique_qptr<Widget> view;
 	rpl::variable<bool> shown = false;
 };
@@ -154,8 +155,9 @@ const auto kUsedKey = u"svipe_clips_used"_q;
 void EnsureState(not_null<Window::SessionController*> controller, Holder &holder) {
 	const auto stale = holder.state
 		&& !holder.view
-		&& (crl::now() - holder.stateAt > kFreshFor);
+		&& (holder.seeded || (crl::now() - holder.stateAt > kFreshFor));
 	if (!holder.state || stale) {
+		holder.seeded = false;
 		holder.state = std::make_shared<State>();
 		holder.state->feed = std::make_unique<Feed>(&controller->session());
 		holder.stateAt = crl::now();
@@ -185,9 +187,13 @@ void Warm(not_null<Window::SessionController*> controller) {
 	feed->loadMore();
 }
 
-void Open(not_null<Window::SessionController*> controller) {
+namespace {
+
+void OpenImpl(not_null<Window::SessionController*> controller, bool overVideo) {
 	controller->hideLayer(anim::type::instant); // the main menu Clips were opened from
-	Video::Close(controller); // one full-window surface at a time
+	if (!overVideo) {
+		Video::Close(controller); // one full-window surface at a time
+	}
 	Storage::Set(&controller->session(), kUsedKey, true);
 	auto &holder = HolderFor(controller);
 	EnsureState(controller, holder);
@@ -213,6 +219,30 @@ void Open(not_null<Window::SessionController*> controller) {
 	view->raise();
 	view->setFocus();
 	holder.shown = true;
+}
+
+} // namespace
+
+void Open(not_null<Window::SessionController*> controller) {
+	OpenImpl(controller, false);
+}
+
+void OpenSeeded(
+		not_null<Window::SessionController*> controller,
+		std::vector<std::shared_ptr<Item>> items) {
+	if (items.empty()) {
+		return;
+	}
+	Close(controller);
+	auto &holder = HolderFor(controller);
+	holder.state = std::make_shared<State>();
+	holder.state->feed = std::make_unique<Feed>(&controller->session());
+	holder.state->feed->seed(std::move(items));
+	holder.stateAt = crl::now();
+	holder.seeded = false; // so Open keeps this state rather than replacing it
+	// Over the Video tab, not instead of it: closing Lavha returns to the search it came from.
+	OpenImpl(controller, true);
+	holder.seeded = true; // ...and the Lavha button, next time, starts the real feed again
 }
 
 void Close(not_null<Window::SessionController*> controller) {

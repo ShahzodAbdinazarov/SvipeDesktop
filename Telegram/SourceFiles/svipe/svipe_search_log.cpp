@@ -26,15 +26,26 @@ struct Visit {
 };
 
 struct State {
+	QString source;
 	std::optional<Visit> visit;
 	QString pending;
 	base::Timer timer;
 	base::weak_ptr<Main::Session> session;
 };
 
-State &Current() {
-	static auto result = State();
-	return result;
+// One visit at a time per surface: the chats search ("chats") and the Video tab's ("explore").
+State &Current(const QString &source = u"chats"_q) {
+	static auto chats = [] {
+		auto result = std::make_unique<State>();
+		result->source = u"chats"_q;
+		return result;
+	}();
+	static auto explore = [] {
+		auto result = std::make_unique<State>();
+		result->source = u"explore"_q;
+		return result;
+	}();
+	return (source == u"explore"_q) ? *explore : *chats;
 }
 
 // SvipeSearchLog.collapse: a prefix-extension (or a backspace) replaces the last variant, a
@@ -63,19 +74,21 @@ void Send(not_null<Main::Session*> session, QJsonObject body) {
 	});
 }
 
-[[nodiscard]] QJsonObject Body(const Visit &visit) {
+[[nodiscard]] QJsonObject Body(const Visit &visit, const QString &source = u"chats"_q) {
 	auto body = QJsonObject{
 		{ u"session_id"_q, visit.sessionId },
-		{ u"source"_q, u"chats"_q },
+		{ u"source"_q, source },
 	};
+	if (source == u"explore"_q) {
+		body.insert(u"result_count"_q, -1); // Android sends -1: results arrive per pipe, later
+	}
 	if (!visit.queries.isEmpty()) {
 		body.insert(u"queries"_q, QJsonArray::fromStringList(visit.queries));
 	}
 	return body;
 }
 
-void Settle() {
-	auto &state = Current();
+void SettleState(State &state) {
 	const auto session = state.session.get();
 	const auto q = state.pending;
 	if (!session || q.isEmpty()) {
@@ -88,13 +101,23 @@ void Settle() {
 	}
 	state.visit->lastQuery = q;
 	Collapse(state.visit->queries, q);
-	Send(session, Body(*state.visit)); // the native search reports no result count
+	Send(session, Body(*state.visit, state.source));
 }
 
-} // namespace
+void Settle() {
+	SettleState(Current());
+}
 
-void Query(not_null<Main::Session*> session, const QString &text) {
-	auto &state = Current();
+void SettleExplore() {
+	SettleState(Current(u"explore"_q));
+}
+
+void QueryIn(
+		State &state,
+		not_null<Main::Session*> session,
+		const QString &text,
+		int minLength,
+		Fn<void()> settle) {
 	const auto q = text.trimmed();
 	if (state.session.get() != session) {
 		state.visit = std::nullopt;
@@ -105,9 +128,47 @@ void Query(not_null<Main::Session*> session, const QString &text) {
 		state.timer.cancel();
 		state.visit = std::nullopt; // field emptied: this search visit is over
 		return;
+	} else if (q.size() < minLength) {
+		state.timer.cancel();
+		return;
 	}
-	state.timer.setCallback(Settle);
+	state.timer.setCallback(std::move(settle));
 	state.timer.callOnce(kSettle); // restarts: only a query that stays put is recorded
+}
+
+} // namespace
+
+void Query(not_null<Main::Session*> session, const QString &text) {
+	QueryIn(Current(), session, text, 1, Settle);
+}
+
+void ExploreQuery(not_null<Main::Session*> session, const QString &text) {
+	QueryIn(Current(u"explore"_q), session, text, 2, SettleExplore); // Android: 2+ characters
+}
+
+void ExploreClick(
+		not_null<Main::Session*> session,
+		const QString &username,
+		MsgId messageId) {
+	auto &state = Current(u"explore"_q);
+	if (state.timer.isActive()) {
+		state.timer.cancel();
+		SettleExplore();
+	}
+	if (!state.visit || state.session.get() != session) {
+		return;
+	}
+	// Android: kind "reel" for every tapped video, ref "username/messageId", no label.
+	auto clicked = QJsonObject{
+		{ u"kind"_q, u"reel"_q },
+		{ u"ref"_q, username + '/' + QString::number(messageId.bare) },
+	};
+	if (!state.visit->lastQuery.isEmpty()) {
+		clicked.insert(u"query"_q, state.visit->lastQuery);
+	}
+	auto body = Body(*state.visit, state.source);
+	body.insert(u"clicked"_q, clicked);
+	Send(session, body);
 }
 
 void Click(not_null<PeerData*> peer) {

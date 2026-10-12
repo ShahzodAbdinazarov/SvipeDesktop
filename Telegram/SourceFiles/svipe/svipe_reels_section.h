@@ -56,6 +56,11 @@ struct State {
 // behind the "Messages" pill in the bottom-right corner.
 void Open(not_null<Window::SessionController*> controller);
 void Close(not_null<Window::SessionController*> controller);
+// A tapped short from the Video tab (search results, recent searches): Lavha opens on it, followed by
+// the rest of `items` and then the feed seeded with it (Android: ReelsActivity.ofDiscoverSeed).
+void OpenSeeded(
+	not_null<Window::SessionController*> controller,
+	std::vector<std::shared_ptr<Item>> items);
 // Android's SvipeReelWarmer: the first page fetched and its head resolved before Clips is opened,
 // for someone who has opened Clips before.
 void Warm(not_null<Window::SessionController*> controller);

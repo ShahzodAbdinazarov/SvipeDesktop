@@ -25,4 +25,12 @@ namespace Svipe::SearchLog {
 void Query(not_null<Main::Session*> session, const QString &text);
 void Click(not_null<PeerData*> peer);
 
+// The Video tab's search (Android: SvipeSearchLog source "explore", from the search section): the
+// same visit model, 2+ characters, and a tapped video reported as kind "reel".
+void ExploreQuery(not_null<Main::Session*> session, const QString &text);
+void ExploreClick(
+	not_null<Main::Session*> session,
+	const QString &username,
+	MsgId messageId);
+
 } // namespace Svipe::SearchLog

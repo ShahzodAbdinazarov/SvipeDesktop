@@ -103,6 +103,9 @@ enum class Str {
 	ReelsActionUnavailable,
 	VideoTitle,
 	RelatedVideos,
+	VideoSearch,
+	VideoRecentSearches,
+	VideoClearSearchHistory,
 };
 
 // "N exceptions", with each language's plural forms.

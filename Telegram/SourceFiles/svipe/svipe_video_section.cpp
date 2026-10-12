@@ -29,6 +29,10 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "svipe/svipe_storage.h"
 #include "svipe/svipe_strings.h"
 #include "svipe/svipe_video.h"
+#include "base/timer.h"
+#include "ui/widgets/popup_menu.h"
+#include "ui/widgets/fields/input_field.h"
+#include "svipe/svipe_search_log.h"
 #include "ui/image/image.h"
 #include "ui/image/image_prepare.h"
 #include "ui/painter.h"
@@ -44,6 +48,8 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "window/main_window.h"
 #include "window/window_session_controller.h"
 #include "styles/style_info.h"
+#include "styles/style_dialogs.h"
+#include "styles/style_menu_icons.h"
 #include "styles/style_layers.h"
 #include "styles/style_widgets.h"
 #include "styles/style_window.h"
@@ -245,11 +251,15 @@ public:
 		QWidget *parent,
 		not_null<Main::Session*> session,
 		not_null<Reels::Feed*> feed,
-		not_null<List*> list);
+		not_null<Source*> list);
 
 	[[nodiscard]] rpl::producer<std::shared_ptr<Item>> openRequests() const {
 		return _openRequests.events();
 	}
+	// The recent searches: a header with a clear action, and right click removes one.
+	void setRecent(Fn<void()> clear, Fn<void(std::shared_ptr<Item>)> remove);
+	// Search results: reels that stay on screen are reported (Android SvipeGridExposure).
+	void setExposeShorts(bool expose);
 
 protected:
 	int resizeGetHeight(int newWidth) override;
@@ -257,6 +267,7 @@ protected:
 	void mouseMoveEvent(QMouseEvent *e) override;
 	void mousePressEvent(QMouseEvent *e) override;
 	void mouseReleaseEvent(QMouseEvent *e) override;
+	void contextMenuEvent(QContextMenuEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
 	void visibleTopBottomUpdated(int visibleTop, int visibleBottom) override;
 
@@ -269,23 +280,42 @@ private:
 		int cardWidth = 0;
 		int thumbHeight = 0;
 		int rowHeight = 0;
+		int tallColumns = 1;
+		int tallWidth = 0;
+		int tallThumbHeight = 0;
+		int tallRowHeight = 0;
+		int header = 0;
 	};
 	void sync();
 	[[nodiscard]] Layout layout(int width) const;
+	void placeCards();
 	[[nodiscard]] QRect cardRect(int index) const;
 	[[nodiscard]] int cardAt(QPoint point) const;
 	void resolveVisible();
 	void retitle(const std::shared_ptr<Item> &item);
+	void checkExposure();
+	[[nodiscard]] QRect clearRect() const;
 
 	const not_null<Main::Session*> _session;
 	const not_null<Reels::Feed*> _feed;
-	const not_null<List*> _list;
+	const not_null<Source*> _list;
 	std::vector<Card> _cards;
+	std::vector<QRect> _rects;
+	int _contentBottom = 0;
 	Layout _layout;
 	int _visibleTop = 0;
 	int _visibleBottom = 0;
 	int _over = -1;
+	bool _overClear = false;
 	int _pressed = -1;
+	bool _pressedClear = false;
+	Fn<void()> _clear;
+	Fn<void(std::shared_ptr<Item>)> _remove;
+	base::unique_qptr<Ui::PopupMenu> _menu;
+	bool _expose = false;
+	base::Timer _exposureTimer;
+	base::flat_map<Item*, crl::time> _seenSince;
+	base::flat_set<QString> _exposed;
 	rpl::event_stream<std::shared_ptr<Item>> _openRequests;
 
 };
@@ -294,11 +324,12 @@ Grid::Grid(
 	QWidget *parent,
 	not_null<Main::Session*> session,
 	not_null<Reels::Feed*> feed,
-	not_null<List*> list)
+	not_null<Source*> list)
 : RpWidget(parent)
 , _session(session)
 , _feed(feed)
-, _list(list) {
+, _list(list)
+, _exposureTimer([=] { checkExposure(); }) {
 	setMouseTracking(true);
 	ChannelInfo::Updated() | rpl::on_next([=] {
 		update(); // a channel picture or name arrived from its public page
@@ -309,6 +340,22 @@ Grid::Grid(
 	sync();
 	if (_list->items().empty()) {
 		_list->loadMore();
+	}
+}
+
+void Grid::setRecent(Fn<void()> clear, Fn<void(std::shared_ptr<Item>)> remove) {
+	_clear = std::move(clear);
+	_remove = std::move(remove);
+	resizeToWidth(width());
+	update();
+}
+
+void Grid::setExposeShorts(bool expose) {
+	_expose = expose;
+	if (_expose) {
+		_exposureTimer.callEach(300);
+	} else {
+		_exposureTimer.cancel();
 	}
 }
 
@@ -331,7 +378,8 @@ void Grid::sync() {
 }
 
 Grid::Layout Grid::layout(int width) const {
-	// YouTube's desktop home: cards at least ~300 px wide, as many columns as fit.
+	// YouTube's desktop home: cards at least ~300 px wide, as many columns as fit; reels as a shelf
+	// of portrait tiles at least ~170 px wide.
 	auto result = Layout();
 	result.padding = S(24);
 	result.gap = S(16);
@@ -345,33 +393,79 @@ Grid::Layout Grid::layout(int width) const {
 		+ st::semiboldFont->height * 2
 		+ S(4)
 		+ st::normalFont->height;
+	result.tallColumns = std::max(1, (inner + result.gap) / (S(170) + result.gap));
+	result.tallWidth = (inner - (result.tallColumns - 1) * result.gap) / result.tallColumns;
+	result.tallThumbHeight = result.tallWidth * 16 / 9;
+	result.tallRowHeight = result.tallThumbHeight
+		+ S(8)
+		+ st::semiboldFont->height * 2
+		+ S(2)
+		+ st::normalFont->height;
+	result.header = _clear ? S(48) : 0;
 	return result;
+}
+
+void Grid::placeCards() {
+	// Consecutive cards of one kind fill rows of that kind; a change of kind starts a new row.
+	const auto &l = _layout;
+	_rects.clear();
+	_rects.reserve(_cards.size());
+	auto top = l.padding + l.header;
+	auto column = 0;
+	auto rowTall = false;
+	auto rowOpen = false;
+	for (const auto &card : _cards) {
+		const auto tall = card.item->shortForm;
+		const auto columns = tall ? l.tallColumns : l.columns;
+		if (rowOpen && (tall != rowTall || column == columns)) {
+			top += (rowTall ? l.tallRowHeight : l.rowHeight) + l.rowGap;
+			column = 0;
+		}
+		rowOpen = true;
+		rowTall = tall;
+		const auto width = tall ? l.tallWidth : l.cardWidth;
+		const auto height = tall ? l.tallRowHeight : l.rowHeight;
+		_rects.push_back(QRect(l.padding + column * (width + l.gap), top, width, height));
+		++column;
+	}
+	_contentBottom = rowOpen
+		? (top + (rowTall ? l.tallRowHeight : l.rowHeight))
+		: (l.padding + l.header);
 }
 
 int Grid::resizeGetHeight(int newWidth) {
 	_layout = layout(newWidth);
-	const auto rows = (int(_cards.size()) + _layout.columns - 1) / _layout.columns;
-	const auto content = rows * _layout.rowHeight
-		+ std::max(rows - 1, 0) * _layout.rowGap;
+	placeCards();
+	const auto wide = _layout.columns, tall = _layout.tallColumns;
+	crl::on_main(this, [=] {
+		_list->setRowSizes(wide, tall); // deferred: it may re-order the list, and so resize us
+	});
 	const auto footer = (_list->exhausted() ? 0 : S(48));
 	return std::max(
-		2 * _layout.padding + content + footer,
+		_contentBottom + _layout.padding + footer,
 		_cards.empty() ? S(400) : 0);
 }
 
 QRect Grid::cardRect(int index) const {
-	const auto &l = _layout;
-	const auto row = index / l.columns, column = index % l.columns;
+	return (index >= 0 && index < int(_rects.size())) ? _rects[index] : QRect();
+}
+
+QRect Grid::clearRect() const {
+	if (!_clear) {
+		return QRect();
+	}
+	const auto text = Tr(Str::VideoClearSearchHistory);
+	const auto w = st::semiboldFont->width(text);
 	return QRect(
-		l.padding + column * (l.cardWidth + l.gap),
-		l.padding + row * (l.rowHeight + l.rowGap),
-		l.cardWidth,
-		l.rowHeight);
+		width() - _layout.padding - w,
+		_layout.padding,
+		w,
+		_layout.header - S(12));
 }
 
 int Grid::cardAt(QPoint point) const {
-	for (auto i = 0; i != int(_cards.size()); ++i) {
-		if (cardRect(i).contains(point)) {
+	for (auto i = 0; i != int(_rects.size()); ++i) {
+		if (_rects[i].contains(point)) {
 			return i;
 		}
 	}
@@ -423,6 +517,36 @@ void Grid::resolveVisible() {
 	}
 }
 
+void Grid::checkExposure() {
+	// Android SvipeGridExposure: a reel at least 60% on screen for 1.2 s is an IMPRESSION, once.
+	const auto now = crl::now();
+	for (auto i = 0; i != int(_cards.size()); ++i) {
+		const auto &item = _cards[i].item;
+		if (!item->shortForm) {
+			continue;
+		}
+		const auto key = QString::number(item->channelId) + ':'
+			+ QString::number(item->messageId.bare);
+		if (_exposed.contains(key)) {
+			continue;
+		}
+		const auto rect = cardRect(i);
+		const auto visible = std::min(rect.y() + rect.height(), _visibleBottom)
+			- std::max(rect.y(), _visibleTop);
+		if (rect.height() <= 0 || visible * 10 < rect.height() * 6) {
+			_seenSince.remove(item.get());
+			continue;
+		}
+		const auto since = _seenSince.find(item.get());
+		if (since == end(_seenSince)) {
+			_seenSince.emplace(item.get(), now);
+		} else if (now - since->second >= 1200) {
+			_exposed.emplace(key);
+			_feed->sendEvent(*item, u"IMPRESSION"_q);
+		}
+	}
+}
+
 void Grid::retitle(const std::shared_ptr<Item> &item) {
 	const auto i = ranges::find(_cards, item, &Card::item);
 	if (i != end(_cards)) {
@@ -438,6 +562,17 @@ void Grid::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
 	const auto clip = e->rect();
 	p.fillRect(clip, st::windowBg);
+	if (_clear) {
+		p.setFont(st::semiboldFont);
+		p.setPen(st::windowFg);
+		p.drawText(
+			_layout.padding,
+			_layout.padding + st::semiboldFont->ascent,
+			Tr(Str::VideoRecentSearches));
+		const auto action = clearRect();
+		p.setPen(_overClear ? st::windowActiveTextFg : st::windowSubTextFg);
+		p.drawText(action.x(), action.y() + st::semiboldFont->ascent, Tr(Str::VideoClearSearchHistory));
+	}
 	if (_cards.empty()) {
 		const auto status = _list->status();
 		if (!status.isEmpty()) {
@@ -454,13 +589,35 @@ void Grid::paintEvent(QPaintEvent *e) {
 		}
 		auto &card = _cards[i];
 		RefreshCard(card);
-		const auto thumb = QRect(rect.x(), rect.y(), rect.width(), _layout.thumbHeight);
-		PaintThumb(p, card, thumb, S(12));
+		const auto tall = card.item->shortForm;
+		const auto thumbHeight = tall ? _layout.tallThumbHeight : _layout.thumbHeight;
+		const auto thumb = QRect(rect.x(), rect.y(), rect.width(), thumbHeight);
+		PaintThumb(p, card, thumb, S(12), !tall);
 		if (_over == i) {
 			auto hq = PainterHighQualityEnabler(p);
 			p.setPen(Qt::NoPen);
 			p.setBrush(QColor(255, 255, 255, 18));
 			p.drawRoundedRect(thumb, S(12), S(12));
+		}
+		const auto lineHeight = st::semiboldFont->height;
+		if (tall) {
+			// A reel tile, as YouTube's Shorts shelf: the title under the poster, then the channel.
+			const auto top = thumb.y() + thumb.height() + S(8);
+			const auto available = rect.width();
+			p.setPen(st::windowFg);
+			if (!card.title.isEmpty()) {
+				card.title.drawElided(p, rect.x(), top, available, 2);
+			}
+			const auto titleHeight = card.title.isEmpty()
+				? 0
+				: (card.title.maxWidth() > available ? 2 : 1) * lineHeight;
+			p.setFont(st::normalFont);
+			p.setPen(st::windowSubTextFg);
+			p.drawText(
+				rect.x(),
+				top + titleHeight + S(2) + st::normalFont->ascent,
+				st::normalFont->elided(ChannelName(_session, *card.item), available));
+			continue;
 		}
 		const auto top = thumb.y() + thumb.height() + S(12);
 		const auto avatar = S(36);
@@ -471,7 +628,6 @@ void Grid::paintEvent(QPaintEvent *e) {
 		if (!card.title.isEmpty()) {
 			card.title.drawElided(p, left, top, available, 2);
 		}
-		const auto lineHeight = st::semiboldFont->height;
 		const auto titleHeight = card.title.isEmpty()
 			? 0
 			: (card.title.maxWidth() > available ? 2 : 1) * lineHeight;
@@ -487,30 +643,57 @@ void Grid::paintEvent(QPaintEvent *e) {
 
 void Grid::mouseMoveEvent(QMouseEvent *e) {
 	const auto over = cardAt(e->pos());
-	if (_over != over) {
+	const auto overClear = clearRect().contains(e->pos());
+	if (_over != over || _overClear != overClear) {
 		_over = over;
-		setCursor(over >= 0 ? style::cur_pointer : style::cur_default);
+		_overClear = overClear;
+		setCursor((over >= 0 || overClear) ? style::cur_pointer : style::cur_default);
 		update();
 	}
 }
 
 void Grid::leaveEventHook(QEvent *e) {
-	if (_over >= 0) {
+	if (_over >= 0 || _overClear) {
 		_over = -1;
+		_overClear = false;
 		setCursor(style::cur_default);
 		update();
 	}
 }
 
 void Grid::mousePressEvent(QMouseEvent *e) {
-	_pressed = (e->button() == Qt::LeftButton) ? cardAt(e->pos()) : -1;
+	const auto left = (e->button() == Qt::LeftButton);
+	_pressed = left ? cardAt(e->pos()) : -1;
+	_pressedClear = left && clearRect().contains(e->pos());
 }
 
 void Grid::mouseReleaseEvent(QMouseEvent *e) {
 	const auto pressed = std::exchange(_pressed, -1);
+	if (std::exchange(_pressedClear, false) && clearRect().contains(e->pos())) {
+		if (_clear) {
+			_clear();
+		}
+		return;
+	}
 	if (pressed >= 0 && pressed == cardAt(e->pos()) && pressed < int(_cards.size())) {
 		_openRequests.fire_copy(_cards[pressed].item);
 	}
+}
+
+void Grid::contextMenuEvent(QContextMenuEvent *e) {
+	// Android: a long press on a recent search removes it.
+	const auto index = _remove ? cardAt(e->pos()) : -1;
+	if (index < 0 || index >= int(_cards.size())) {
+		return;
+	}
+	const auto item = _cards[index].item;
+	_menu = base::make_unique_q<Ui::PopupMenu>(this, st::popupMenuWithIcons);
+	_menu->addAction(tr::lng_recent_remove(tr::now), [=] {
+		if (_remove) {
+			_remove(item);
+		}
+	}, &st::menuIconDelete);
+	_menu->popup(e->globalPos());
 }
 
 // ---- The watch page ------------------------------------------------------------------------
@@ -1324,6 +1507,11 @@ public:
 	void back();
 	void showGrid();
 	void placeIn(QSize body);
+	void debugSearch(const QString &query) {
+		_search->setText(query);
+		_debounce.cancel();
+		refreshMode();
+	}
 
 protected:
 	void resizeEvent(QResizeEvent *e) override;
@@ -1331,18 +1519,43 @@ protected:
 	void keyPressEvent(QKeyEvent *e) override;
 
 private:
+	// Android SvipeExploreGrid's three faces: the feed, the recent searches (the field focused and
+	// empty), the results (2+ characters, after a 350 ms pause).
+	enum class Mode {
+		Browse,
+		Recent,
+		Results,
+	};
+
+	void layoutAll();
+	void layoutWatch();
+	[[nodiscard]] int barHeight() const;
+	void setFullscreen(bool fullscreen);
+	void searchChanged();
+	void refreshMode();
+	void showBrowse();
+	void showRecent();
+	void showResults(const QString &query);
+	void setSearchGrid(not_null<Source*> source, Mode mode);
+	void openFromSearch(std::shared_ptr<Item> item);
+	void openItem(std::shared_ptr<Item> item, not_null<Source*> source);
+	void clearSearch();
+
 	const not_null<Window::SessionController*> _controller;
 	const not_null<Reels::Feed*> _feed;
+	object_ptr<Ui::InputField> _search;
+	object_ptr<Ui::CrossButton> _cancel;
 	object_ptr<Ui::ScrollArea> _browse;
+	object_ptr<Ui::ScrollArea> _results = { nullptr };
 	object_ptr<Ui::ScrollArea> _watch = { nullptr };
 	object_ptr<Ui::IconButton> _back = { nullptr };
 	QPointer<WatchPage> _page;
+	std::unique_ptr<SearchSource> _searchSource;
+	std::unique_ptr<RecentSource> _recentSource;
+	Mode _mode = Mode::Browse;
+	base::Timer _debounce;
 	bool _fullscreen = false;
-
-	void layoutWatch();
 	bool _windowWasFullScreen = false;
-
-	void setFullscreen(bool fullscreen);
 
 };
 
@@ -1354,7 +1567,10 @@ Widget::Widget(
 : RpWidget(parent)
 , _controller(controller)
 , _feed(feed)
-, _browse(this, st::defaultScrollArea) {
+, _search(this, st::dialogsFilter, rpl::single(Tr(Str::VideoSearch)))
+, _cancel(this, st::dialogsCancelSearch)
+, _browse(this, st::defaultScrollArea)
+, _debounce([=] { refreshMode(); }) {
 	setFocusPolicy(Qt::StrongFocus);
 	const auto grid = _browse->setOwnedWidget(object_ptr<Grid>(
 		this,
@@ -1362,8 +1578,155 @@ Widget::Widget(
 		feed,
 		list));
 	grid->openRequests() | rpl::on_next([=](std::shared_ptr<Item> item) {
-		openVideo(item);
+		openItem(item, list);
 	}, grid->lifetime());
+
+	_cancel->toggle(false, anim::type::instant);
+	_cancel->setClickedCallback([=] { clearSearch(); });
+	_search->changes() | rpl::on_next([=] {
+		searchChanged();
+	}, _search->lifetime());
+	_search->focusedChanges() | rpl::on_next([=] {
+		// Focus alone flips between the feed and the recent searches; typing is debounced.
+		if (_search->getLastText().trimmed().size() < 2) {
+			refreshMode();
+		}
+	}, _search->lifetime());
+	_search->submits() | rpl::on_next([=] {
+		_debounce.cancel();
+		refreshMode();
+	}, _search->lifetime());
+	_search->cancelled() | rpl::on_next([=] {
+		back();
+	}, _search->lifetime());
+}
+
+int Widget::barHeight() const {
+	return _fullscreen ? 0 : S(56);
+}
+
+void Widget::searchChanged() {
+	const auto text = _search->getLastText();
+	_cancel->toggle(!text.isEmpty(), anim::type::normal);
+	SearchLog::ExploreQuery(&_controller->session(), text);
+	if (text.trimmed().size() >= 2) {
+		_debounce.callOnce(350); // Android: SEARCH_DEBOUNCE_MS
+	} else {
+		_debounce.cancel();
+		refreshMode();
+	}
+}
+
+void Widget::refreshMode() {
+	const auto query = _search->getLastText().trimmed();
+	if (query.size() >= 2) {
+		if (_mode != Mode::Results || !_searchSource || _searchSource->query() != query) {
+			showResults(query);
+		}
+	} else if (query.isEmpty()) {
+		const auto session = &_controller->session();
+		if (_search->hasFocus() && !SearchHistory::Empty(session)) {
+			if (_mode != Mode::Recent) {
+				showRecent();
+			}
+		} else if (_mode != Mode::Browse) {
+			showBrowse();
+		}
+	} // One character: whatever is showing stays.
+}
+
+void Widget::setSearchGrid(not_null<Source*> source, Mode mode) {
+	if (_watch) {
+		showGrid();
+	}
+	_mode = mode;
+	_results.destroy();
+	_results.create(this, st::defaultScrollArea);
+	const auto grid = _results->setOwnedWidget(object_ptr<Grid>(
+		this,
+		&_controller->session(),
+		_feed,
+		source));
+	if (mode == Mode::Recent) {
+		grid->setRecent([=] {
+			_recentSource->clear();
+			refreshMode();
+		}, [=](std::shared_ptr<Item> item) {
+			_recentSource->remove(item);
+			if (_recentSource->items().empty()) {
+				refreshMode();
+			}
+		});
+		grid->openRequests() | rpl::on_next([=](std::shared_ptr<Item> item) {
+			openItem(item, _recentSource.get());
+		}, grid->lifetime());
+	} else {
+		grid->setExposeShorts(true);
+		grid->openRequests() | rpl::on_next([=](std::shared_ptr<Item> item) {
+			openFromSearch(item);
+		}, grid->lifetime());
+	}
+	_browse->hide();
+	layoutAll();
+	_results->show();
+}
+
+void Widget::showBrowse() {
+	_mode = Mode::Browse;
+	_results.destroy();
+	_searchSource = nullptr;
+	_recentSource = nullptr;
+	if (!_watch) {
+		_browse->show();
+	}
+}
+
+void Widget::showRecent() {
+	_searchSource = nullptr;
+	_recentSource = std::make_unique<RecentSource>(&_controller->session());
+	setSearchGrid(_recentSource.get(), Mode::Recent);
+}
+
+void Widget::showResults(const QString &query) {
+	_recentSource = nullptr;
+	_searchSource = std::make_unique<SearchSource>(_feed, query);
+	setSearchGrid(_searchSource.get(), Mode::Results);
+}
+
+void Widget::openFromSearch(std::shared_ptr<Item> item) {
+	// Android: a tapped result joins the recent searches and is reported with the query.
+	const auto session = &_controller->session();
+	SearchHistory::Add(session, *item);
+	SearchLog::ExploreClick(session, item->username, item->messageId);
+	openItem(item, _searchSource.get());
+}
+
+void Widget::openItem(std::shared_ptr<Item> item, not_null<Source*> source) {
+	if (!item->shortForm) {
+		openVideo(item);
+		return;
+	}
+	// A reel opens in Lavha on it, then the reels after it, then the feed seeded with it.
+	auto reels = std::vector<std::shared_ptr<Item>>();
+	const auto &items = source->items();
+	const auto from = ranges::find(items, item);
+	for (auto i = from; i != end(items); ++i) {
+		if ((*i)->shortForm) {
+			reels.push_back(*i);
+		}
+	}
+	if (reels.empty()) {
+		reels.push_back(item);
+	}
+	Reels::OpenSeeded(_controller, std::move(reels));
+}
+
+void Widget::clearSearch() {
+	_debounce.cancel();
+	_search->clear();
+	_search->clearFocus();
+	setFocus();
+	showBrowse();
 }
 
 void Widget::openVideo(std::shared_ptr<Item> item) {
@@ -1388,23 +1751,58 @@ void Widget::openVideo(std::shared_ptr<Item> item) {
 		_back.create(this, st::infoTopBarBack);
 		_back->setClickedCallback([=] { showGrid(); });
 	}
-	layoutWatch();
+	layoutAll();
 	_watch->show();
 	_back->show();
 	_back->raise();
 	_browse->hide();
+	if (_results) {
+		_results->hide();
+	}
 	setFocus();
+}
+
+void Widget::layoutAll() {
+	const auto bar = barHeight();
+	_search->setVisible(!_fullscreen);
+	_cancel->setVisible(!_fullscreen && _cancel->toggled());
+	if (!_fullscreen) {
+		// YouTube's header: the search field centred, the back arrow at the left while watching.
+		const auto side = S(72);
+		const auto fieldWidth = std::min(S(640), std::max(width() - 2 * side, S(200)));
+		const auto fieldHeight = _search->height();
+		_search->setGeometry(
+			(width() - fieldWidth) / 2,
+			(bar - fieldHeight) / 2,
+			fieldWidth,
+			fieldHeight);
+		_cancel->moveToLeft(
+			_search->x() + _search->width() - _cancel->width(),
+			_search->y() + (fieldHeight - _cancel->height()) / 2);
+		_cancel->raise();
+	}
+	_browse->setGeometry(0, bar, width(), height() - bar);
+	if (const auto grid = static_cast<Grid*>(_browse->widget())) {
+		grid->resizeToWidth(width());
+	}
+	if (_results) {
+		_results->setGeometry(0, bar, width(), height() - bar);
+		if (const auto grid = static_cast<Grid*>(_results->widget())) {
+			grid->resizeToWidth(width());
+		}
+	}
+	layoutWatch();
 }
 
 void Widget::layoutWatch() {
 	if (!_watch) {
 		return;
 	}
-	// A back bar above the page, as YouTube's header: the way back to the grid without a keyboard.
-	const auto bar = _fullscreen ? 0 : st::infoTopBarHeight;
+	// The back arrow sits in the header bar, left of the search field.
+	const auto bar = barHeight();
 	if (_back) {
 		_back->setVisible(!_fullscreen);
-		_back->moveToLeft(0, 0);
+		_back->moveToLeft(0, (bar - _back->height()) / 2);
 	}
 	_watch->setGeometry(0, bar, width(), height() - bar);
 	if (_page) {
@@ -1421,7 +1819,11 @@ void Widget::showGrid() {
 		_page = nullptr;
 		_watch.destroy();
 		_back.destroy();
-		_browse->show();
+		if (_results) {
+			_results->show();
+		} else {
+			_browse->show();
+		}
 		update();
 	}
 	setFocus();
@@ -1454,7 +1856,7 @@ void Widget::setFullscreen(bool fullscreen) {
 	if (_page) {
 		_page->setFullscreen(fullscreen);
 	}
-	layoutWatch();
+	layoutAll();
 	if (parentWidget()) {
 		placeIn(parentWidget()->size());
 	}
@@ -1469,17 +1871,17 @@ void Widget::back() {
 	}
 	if (_watch) {
 		showGrid();
+	} else if (!_search->getLastText().isEmpty()) {
+		clearSearch(); // Android: back with text clears it first
+	} else if (_mode != Mode::Browse || _search->hasFocus()) {
+		clearSearch();
 	} else {
 		Close(_controller);
 	}
 }
 
 void Widget::resizeEvent(QResizeEvent *e) {
-	_browse->setGeometry(rect());
-	if (const auto grid = static_cast<Grid*>(_browse->widget())) {
-		grid->resizeToWidth(width());
-	}
-	layoutWatch();
+	layoutAll();
 }
 
 void Widget::paintEvent(QPaintEvent *e) {
@@ -1628,6 +2030,13 @@ void Close(not_null<Window::SessionController*> controller) {
 
 bool Shown(not_null<Window::SessionController*> controller) {
 	return HolderFor(controller).shown.current();
+}
+
+void DebugSearch(not_null<Window::SessionController*> controller, const QString &query) {
+	Open(controller);
+	if (const auto view = HolderFor(controller).view.get()) {
+		view->debugSearch(query);
+	}
 }
 
 void DebugOpenFirst(not_null<Window::SessionController*> controller) {

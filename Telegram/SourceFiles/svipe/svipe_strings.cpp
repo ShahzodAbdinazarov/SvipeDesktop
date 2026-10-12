@@ -317,6 +317,19 @@ Translations Lookup(Str key) {
 		"Related videos",
 		"O'xshash videolar",
 		"Похожие видео" };
+	// Android's SvipeSearchVideos, SvipeRecentSearches, SvipeClearSearchHistory, verbatim.
+	case Str::VideoSearch: return {
+		"Search videos",
+		"Videolarni qidirish",
+		"Поиск видео" };
+	case Str::VideoRecentSearches: return {
+		"Recent searches",
+		"So'nggi qidiruvlar",
+		"Недавние запросы" };
+	case Str::VideoClearSearchHistory: return {
+		"Clear search history",
+		"Qidiruv tarixini tozalash",
+		"Очистить историю поиска" };
 	case Str::AvatarSettingsFailed: return {
 		"Couldn't reach the server. Try again.",
 		"Serverga ulanib bo'lmadi. Qayta urinib ko'ring.",

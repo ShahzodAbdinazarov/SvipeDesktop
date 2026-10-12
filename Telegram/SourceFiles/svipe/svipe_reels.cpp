@@ -147,6 +147,7 @@ std::shared_ptr<Item> Feed::ParseItem(const QJsonObject &o) {
 	item->width = o.value(u"width"_q).toInt();
 	item->height = o.value(u"height"_q).toInt();
 	item->durationMs = o.value(u"duration_ms"_q).toInteger();
+	item->topicId = o.value(u"topic_id"_q).toInt();
 	const auto thumb = o.value(u"thumb_b64"_q).toString();
 	if (!thumb.isEmpty()) {
 		item->inlineThumb = QByteArray::fromBase64(thumb.toLatin1());
@@ -195,6 +196,21 @@ void Feed::markWatched(const Item &item) {
 	Storage::Set(_session, kWatchedKey, list);
 }
 
+void Feed::seed(std::vector<std::shared_ptr<Item>> items) {
+	if (items.empty()) {
+		return;
+	}
+	_seedChannel = items.front()->channelId;
+	_seedMessage = items.front()->messageId;
+	_seedTopic = items.front()->topicId;
+	for (auto i = 0; i != int(items.size()); ++i) {
+		items[i]->feedPosition = i;
+	}
+	_items = std::move(items);
+	_status = QString();
+	_updates.fire({});
+}
+
 void Feed::loadMore() {
 	if (_loading || _exhausted) {
 		return;
@@ -224,6 +240,14 @@ void Feed::request() {
 		auto path = u"/v1/feed"_q;
 		if (!_cursor.isEmpty()) {
 			path += u"?cursor="_q + QString::fromUtf8(QUrl::toPercentEncoding(_cursor));
+		} else if (_seedChannel) {
+			// The first page of a seeded continuation; the cursor carries the seed from here on.
+			path += u"?seed_channel_id=%1&seed_message_id=%2"_q
+				.arg(_seedChannel)
+				.arg(_seedMessage.bare);
+			if (_seedTopic) {
+				path += u"&seed_topic_id=%1"_q.arg(_seedTopic);
+			}
 		}
 		Api::Get(path, token, [=](QJsonObject result, int code) {
 			if (!weak) {

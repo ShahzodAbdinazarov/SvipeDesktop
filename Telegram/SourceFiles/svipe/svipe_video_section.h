@@ -27,6 +27,9 @@ void Close(not_null<Window::SessionController*> controller);
 // fetched and its first cards resolved — for someone who has opened Video before.
 void Warm(not_null<Window::SessionController*> controller);
 
+// Debug aid: type `query` into the Video tab's search field.
+void DebugSearch(not_null<Window::SessionController*> controller, const QString &query);
+
 // Debug aid: open the first video of the grid once the list has one.
 void DebugOpenFirst(not_null<Window::SessionController*> controller);
 

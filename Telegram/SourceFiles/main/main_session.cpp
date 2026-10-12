@@ -315,6 +315,19 @@ Session::Session(
 				}
 			}
 		}
+		if (QFile::exists(cWorkingDir() + u"tdata/svipe_video_search"_q)) {
+			if (const auto window = Core::App().activePrimaryWindow()) {
+				if (const auto controller = window->sessionController()) {
+					auto flag = QFile(cWorkingDir() + u"tdata/svipe_video_search"_q);
+					const auto query = flag.open(QIODevice::ReadOnly)
+						? QString::fromUtf8(flag.readAll()).trimmed()
+						: QString();
+					base::call_delayed(20000, controller, [=] {
+						Svipe::Video::DebugSearch(controller, query);
+					});
+				}
+			}
+		}
 		if (QFile::exists(cWorkingDir() + u"tdata/svipe_open_clips"_q)) {
 			if (const auto window = Core::App().activePrimaryWindow()) {
 				if (const auto controller = window->sessionController()) {
