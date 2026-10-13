@@ -66,6 +66,22 @@ jobs:
           git config --global user.email "ci@svipe.uz"
           git config --global user.name "Svipe CI"
 
+      # The Release half of prepare builds breakpad's dump_syms, which includes ATL headers. The
+      # runner's VS has ATL only for its default toolset, not for the pinned 14.44 one, so
+      # the libraries failed on 'atlbase.h' (upstream CI never builds Release libraries).
+      - name: ATL for the 14.44 toolset.
+        shell: pwsh
+        run: |
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          $vs = & "$installer\vswhere.exe" -latest -property installationPath
+          $p = Start-Process -FilePath "$installer\setup.exe" -Wait -PassThru -ArgumentList `
+            'modify','--installPath',"`"$vs`"", `
+            '--add','Microsoft.VisualStudio.Component.VC.ATL', `
+            '--add','Microsoft.VisualStudio.Component.VC.14.44.17.14.ATL', `
+            '--quiet','--norestart','--nocache'
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { exit $p.ExitCode }
+          Get-ChildItem "$vs\VC\Tools\MSVC\14.44*\atlmfc\include\atlbase.h" | Select-Object -First 1 FullName
+
       - uses: Eden-CI/msvc-dev-cmd@master
         name: Native Tools Command Prompt.
         with:
