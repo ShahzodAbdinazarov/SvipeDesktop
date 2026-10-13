@@ -1,3 +1,16 @@
+7.3.1 (13.10.26)
+
+- Svipe Desktop 1.0.13: based on Telegram Desktop 7.3.1 with the new built-in Wallet. Video tab search, as on Android: recent searches, short and long videos together, and it finds a word even when it is misspelled.
+- Fix wallet encryption with Windows Hello sometimes failing.
+- Fix same passcode saving in wallet encryption.
+- Fix copy-restricted media reaching Downloads.
+- Fix bad date colors in some custom themes.
+- Remove attaching Link in photo editor.
+
+7.3 (08.10.26)
+
+- Money.
+
 7.2.24 (10.10.26)
 
 - Svipe Desktop 1.0.12: Video — long videos from the Android app, laid out like YouTube: a grid with channel pictures, and a watch page with the player, fullscreen, related videos and a back arrow. The short-video tab is now called Lavha. Likes, subscriptions and saving work instantly, without waiting on Telegram.
@@ -54,18 +67,6 @@
 
 - Svipe Desktop updates itself from svipe.uz.
 - Svipe mark on the welcome screen.
-
-7.3.1 (09.10.26)
-
-- Fix wallet encryption with Windows Hello sometimes failing.
-- Fix same passcode saving in wallet encryption.
-- Fix copy-restricted media reaching Downloads.
-- Fix bad date colors in some custom themes.
-- Remove attaching Link in photo editor.
-
-7.3 (08.10.26)
-
-- Money.
 
 7.2.10 beta (25.09.26)
 
