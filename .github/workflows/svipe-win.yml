@@ -109,9 +109,12 @@ jobs:
           key: ${{ runner.OS }}-x64-qt-${{ env.CACHE_KEY }}
           restore-keys: ${{ runner.OS }}-x64-qt-
 
+      # Without skip-release: upstream CI builds Debug only, Svipe ships Release, and a Release link
+      # against Debug-only libraries fails on avif.lib / tg_angle.lib. A stage's cache key is built
+      # from its commands, so the stages with release parts rebuild and the rest come from the cache.
       - name: Libraries.
         run: |
-          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent
 
       # Upstream's clean-up keeps headers and libraries only. The wallet binding's generated .cpp
       # (tdesktop_rust/out/src) is a SOURCE the app compiles, so it is kept too — without it the
