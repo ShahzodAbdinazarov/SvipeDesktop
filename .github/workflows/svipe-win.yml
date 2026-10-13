@@ -169,12 +169,19 @@ jobs:
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
           key: ${{ runner.OS }}-x64-qt-${{ env.CACHE_KEY }}
 
+      # Debug and Release libraries together leave too little of C: for a Release build of the app
+      # (run 4 compiled every library target, then failed with C1085 "No space left on device"), so
+      # the build output lives on the runner's second disk behind a junction at the usual place.
       - name: Svipe Desktop build.
         if: ${{ !inputs.only_cache }}
         env:
           API_ID: ${{ secrets.TDESKTOP_API_ID }}
           API_HASH: ${{ secrets.TDESKTOP_API_HASH }}
         run: |
+          wmic logicaldisk get caption,freespace,size
+          mkdir D:\svipe-out
+          mklink /J %TBUILD%\%REPO_NAME%\out D:\svipe-out
+
           cd %TBUILD%\%REPO_NAME%\Telegram
 
           call configure.bat x64 ^
