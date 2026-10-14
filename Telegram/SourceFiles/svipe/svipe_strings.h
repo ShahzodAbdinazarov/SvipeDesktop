@@ -106,6 +106,12 @@ enum class Str {
 	VideoSearch,
 	VideoRecentSearches,
 	VideoClearSearchHistory,
+	BotContactsRequest,
+	BotContactsAllow,
+	BotContactsDecline,
+	BotContactsGranted,
+	BotContactsDenied,
+	BotContactsPermission,
 };
 
 // "N exceptions", with each language's plural forms.

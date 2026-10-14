@@ -2426,6 +2426,12 @@ bool Panel::createWebview(const Webview::ThemeParams &params) {
 			requestWriteAccess();
 		} else if (command == "web_app_request_phone") {
 			requestPhone();
+		} else if (command == "web_app_request_contacts") {
+			requestContacts();
+		} else if (command == "web_app_check_contacts") {
+			notifyContactsChecked();
+		} else if (command == "web_app_open_contacts_settings") {
+			_delegate->botContactsOpenSettings();
 		} else if (command == "web_app_invoke_custom_method") {
 			invokeCustomMethod(arguments);
 		} else if (command == "web_app_setup_closing_behavior") {
@@ -3107,6 +3113,24 @@ void Panel::requestPhone() {
 			finish(false);
 		}
 	});
+}
+
+void Panel::requestContacts() {
+	if (_inBlockingRequest) {
+		postEvent("contacts_requested", QJsonObject{
+			{ u"status"_q, u"cancelled"_q },
+		});
+		return;
+	}
+	_inBlockingRequest = true;
+	_delegate->botContactsRequest(crl::guard(this, [=](QJsonObject result) {
+		_inBlockingRequest = false;
+		postEvent("contacts_requested", result);
+	}));
+}
+
+void Panel::notifyContactsChecked() {
+	postEvent("contacts_checked", _delegate->botContactsCheck());
 }
 
 void Panel::replyRequestPhone(bool shared) {

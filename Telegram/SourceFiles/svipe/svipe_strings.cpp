@@ -330,6 +330,30 @@ Translations Lookup(Str key) {
 		"Clear search history",
 		"Qidiruv tarixini tozalash",
 		"Очистить историю поиска" };
+	case Str::BotContactsRequest: return {
+		"**%1** requests access to your Telegram contacts — names, usernames and the phone numbers you can see. You will be able to revoke this access in the profile page of **%1**.",
+		"**%1** Telegram kontaktlaringizga — ismlar, username va sizga ko'rinadigan telefon raqamlariga kirish ruxsatini so'ramoqda. Bu ruxsatni **%1** profil sahifasida bekor qilishingiz mumkin.",
+		"**%1** запрашивает доступ к вашим контактам Telegram — именам, юзернеймам и номерам телефонов, которые вам видны. Вы сможете отозвать доступ на странице профиля **%1**." };
+	case Str::BotContactsAllow: return {
+		"Allow",
+		"Ruxsat berish",
+		"Разрешить" };
+	case Str::BotContactsDecline: return {
+		"Decline",
+		"Rad etish",
+		"Отклонить" };
+	case Str::BotContactsGranted: return {
+		"**%1** can now access your contacts.",
+		"**%1** endi kontaktlaringizni ko'ra oladi.",
+		"Теперь у **%1** есть доступ к вашим контактам." };
+	case Str::BotContactsDenied: return {
+		"**%1** has no access to your contacts. You can change this in the bot's profile.",
+		"**%1** kontaktlaringizni ko'ra olmaydi. Buni bot profilida o'zgartirishingiz mumkin.",
+		"У **%1** нет доступа к вашим контактам. Это можно изменить в профиле бота." };
+	case Str::BotContactsPermission: return {
+		"Contacts",
+		"Kontaktlar",
+		"Контакты" };
 	case Str::AvatarSettingsFailed: return {
 		"Couldn't reach the server. Try again.",
 		"Serverga ulanib bo'lmadi. Qayta urinib ko'ring.",

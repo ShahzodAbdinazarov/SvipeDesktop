@@ -139,6 +139,10 @@ public:
 	virtual void botRequestChat(RequestChatRequest request) = 0;
 	virtual void botVerifyAge(int age) = 0;
 	virtual void botOpenPrivacyPolicy() = 0;
+	// Svipe: contacts access on the geolocation model (svipe/svipe_bot_contacts.h).
+	[[nodiscard]] virtual QJsonObject botContactsCheck() = 0;
+	virtual void botContactsRequest(Fn<void(QJsonObject)> callback) = 0;
+	virtual void botContactsOpenSettings() = 0;
 	virtual void botClose() = 0;
 };
 
@@ -171,6 +175,8 @@ public:
 		anim::type animated);
 	void hideLayer(anim::type animated);
 	void showToast(TextWithEntities &&text);
+	// Svipe: the bot's contacts answer changed (here, or on its profile).
+	void notifyContactsChecked();
 	not_null<QWidget*> toastParent() const;
 	void showCriticalError(const TextWithEntities &text);
 	void showWebviewError(
@@ -288,6 +294,7 @@ private:
 	void replyRequestWriteAccess(bool allowed);
 	void requestPhone();
 	void replyRequestPhone(bool shared);
+	void requestContacts();
 	void requestPermission(Webview::PermissionType type, Fn<void(bool)> done);
 	void invokeCustomMethod(const QJsonObject &args);
 	void replyCustomMethod(QJsonValue requestId, QJsonObject response);

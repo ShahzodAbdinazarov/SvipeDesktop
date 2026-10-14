@@ -14,6 +14,7 @@ infoProfileLabeledButtonQrRightSkip: 0px;
 infoIconInformation: icon {{ "info/info_information", infoIconFg }};
 infoIconAddMember: icon {{ "info/info_add_member", infoIconFg }};
 infoIconEmojiStatusAccess: icon {{ "menu/read_reactions", infoIconFg, point(4px, 4px) }};
+svipeInfoIconContactsAccess: icon {{ "menu/profile", infoIconFg, point(4px, 4px) }};
 infoIconShare: icon {{ "info/info_share", infoIconFg }};
 infoIconEdit: icon {{ "info/info_edit", infoIconFg }};
 infoIconDelete: icon {{ "info/info_delete", infoIconFg }};

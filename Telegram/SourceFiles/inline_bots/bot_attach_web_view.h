@@ -334,6 +334,9 @@ private:
 		Ui::BotWebView::ResolveButtonEmojiRequest request) override;
 	void botVerifyAge(int age) override;
 	void botOpenPrivacyPolicy() override;
+	QJsonObject botContactsCheck() override;
+	void botContactsRequest(Fn<void(QJsonObject)> callback) override;
+	void botContactsOpenSettings() override;
 	void botClose() override;
 
 	const std::shared_ptr<Ui::Show> _parentShow;

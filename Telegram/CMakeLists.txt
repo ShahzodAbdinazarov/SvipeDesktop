@@ -2022,6 +2022,8 @@ PRIVATE
     svipe/svipe_avatar_archive.h
     svipe/svipe_avatar_sync.cpp
     svipe/svipe_avatar_sync.h
+    svipe/svipe_bot_contacts.cpp
+    svipe/svipe_bot_contacts.h
     svipe/svipe_bot_mute.cpp
     svipe/svipe_bot_mute.h
     svipe/svipe_bots_section.cpp

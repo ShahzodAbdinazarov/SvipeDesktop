@@ -96,6 +96,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat.h"
+#include "svipe/svipe_bot_contacts.h"
+#include "svipe/svipe_strings.h"
 #include "styles/style_info.h" // infoVerifiedStar.
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
@@ -937,6 +939,14 @@ WebViewInstance::WebViewInstance(WebViewDescriptor &&descriptor)
 , _source(std::move(descriptor.source))
 , _api(&_session->mtp()) {
 	Expects(_parentShow != nullptr);
+
+	// Svipe: an open mini app follows its contacts answer, as Android's listener does.
+	Svipe::BotContacts::Changes(
+	) | rpl::filter([=](uint64 botId) {
+		return (botId == _bot->id.value) && (_panel != nullptr);
+	}) | rpl::on_next([=] {
+		_panel->notifyContactsChecked();
+	}, _lifetime);
 
 	resolve();
 }
@@ -2376,6 +2386,58 @@ void WebViewInstance::botOpenPrivacyPolicy() {
 	}
 	if (!sendCommand()) {
 		openUrl(tr::lng_profile_bot_privacy_url(tr::now));
+	}
+}
+
+QJsonObject WebViewInstance::botContactsCheck() {
+	return Svipe::BotContacts::CheckObject(_bot);
+}
+
+// Asked once, like geolocation: after an answer (closing the box counts as declining) the bot gets
+// that answer back without a box, and only the switch on its profile changes it.
+void WebViewInstance::botContactsRequest(Fn<void(QJsonObject)> callback) {
+	const auto bot = _bot;
+	const auto panel = _panel.get();
+	if (Svipe::BotContacts::Asked(bot) || !panel) {
+		callback(Svipe::BotContacts::ContactsObject(bot));
+		return;
+	}
+	const auto weak = base::make_weak(panel);
+	const auto answered = std::make_shared<bool>(false);
+	const auto answer = [=](bool allowed) {
+		if (*answered) {
+			return;
+		}
+		*answered = true;
+		Svipe::BotContacts::SetGranted(bot, allowed);
+		if (const auto strong = weak.get()) {
+			strong->showToast(Ui::Text::RichLangValue(Svipe::Tr(allowed
+				? Svipe::Str::BotContactsGranted
+				: Svipe::Str::BotContactsDenied).arg(bot->name())));
+		}
+		callback(Svipe::BotContacts::ContactsObject(bot));
+	};
+	auto box = Ui::MakeConfirmBox({
+		.text = Ui::Text::RichLangValue(Svipe::Tr(
+			Svipe::Str::BotContactsRequest).arg(bot->name())),
+		.confirmed = [=](Fn<void()> close) {
+			answer(true);
+			close();
+		},
+		.confirmText = Svipe::Tr(Svipe::Str::BotContactsAllow),
+		.cancelText = Svipe::Tr(Svipe::Str::BotContactsDecline),
+	});
+	// Decline, Escape or a click outside all close the box: each is a decline, as on Android.
+	box->boxClosing() | rpl::on_next([=] {
+		answer(false);
+	}, box->lifetime());
+	panel->showBox(std::move(box));
+}
+
+void WebViewInstance::botContactsOpenSettings() {
+	if (const auto strong = _context.controller.get()) {
+		strong->showPeerInfo(_bot);
+		strong->window().activate();
 	}
 }
 

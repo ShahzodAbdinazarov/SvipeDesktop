@@ -7,6 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_actions.h"
 
+#include "svipe/svipe_bot_contacts.h"
+#include "svipe/svipe_strings.h"
+
 #include "api/api_blocked_peers.h"
 #include "api/api_chat_participants.h"
 #include "api/api_credits.h"
@@ -2308,6 +2311,37 @@ Section DetailsFiller::makeBotPermissions(not_null<UserData*> user) {
 	const auto inner = raw->entity();
 	AddSkip(inner);
 	AddSubsectionTitle(inner, tr::lng_profile_bot_permissions_title());
+	// Svipe: the contacts switch, for a bot whose mini app has asked (svipe_bot_contacts.h).
+	if (Svipe::BotContacts::Asked(user)) {
+		const auto contacts = inner->add(
+			object_ptr<Ui::SettingsButton>(
+				inner,
+				Svipe::TrValue(Svipe::Str::BotContactsPermission),
+				st::infoSharedMediaButton));
+		object_ptr<Profile::FloatingIcon>(
+			contacts,
+			st::svipeInfoIconContactsAccess,
+			st::infoSharedMediaButtonIconPosition);
+		contacts->toggleOn(rpl::single(
+			Svipe::BotContacts::Granted(user)
+		) | rpl::then(Svipe::BotContacts::Changes(
+		) | rpl::filter([=](uint64 botId) {
+			return botId == user->id.value;
+		}) | rpl::map([=] {
+			return Svipe::BotContacts::Granted(user);
+		})))->toggledValue() | rpl::filter([=](bool allowed) {
+			return allowed != Svipe::BotContacts::Granted(user);
+		}) | rpl::on_next([=](bool allowed) {
+			Svipe::BotContacts::SetGranted(user, allowed);
+		}, contacts->lifetime());
+	}
+	if (!user->botInfo->canManageEmojiStatus) {
+		AddSkip(inner);
+		return Section{
+			.widget = std::move(wrap),
+			.shown = rpl::single(true),
+		};
+	}
 	const auto emoji = inner->add(
 		object_ptr<Ui::SettingsButton>(
 			inner,
@@ -2772,7 +2806,8 @@ void DetailsFiller::buildSections() {
 			if (info->hasMainApp) {
 				addMainApp(user);
 			}
-			if (info->canManageEmojiStatus) {
+			if (info->canManageEmojiStatus
+				|| Svipe::BotContacts::Asked(user)) {
 				_stack->add(makeBotPermissions(user));
 			}
 			if (const auto id = user->botManagerId()) {
