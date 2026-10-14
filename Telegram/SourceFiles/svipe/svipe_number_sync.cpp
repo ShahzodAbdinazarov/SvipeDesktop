@@ -25,6 +25,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "styles/style_settings.h"
 
 #include <QtCore/QJsonArray>
+#include <QtCore/QTimeZone>
 
 namespace Svipe::NumberSync {
 namespace {
@@ -54,7 +55,7 @@ base::flat_map<uint64, crl::time> &LastSynced() {
 [[nodiscard]] QString Iso(int64 ms) {
 	return QDateTime::fromMSecsSinceEpoch(
 		ms > 0 ? ms : QDateTime::currentMSecsSinceEpoch(),
-		QTimeZone::UTC).toString(u"yyyy-MM-ddTHH:mm:ssZ"_q);
+		QTimeZone::utc()).toString(u"yyyy-MM-ddTHH:mm:ssZ"_q);
 }
 
 // The server speaks ISO-8601; anything unparseable becomes "now", which only widens a window.
@@ -63,7 +64,7 @@ base::flat_map<uint64, crl::time> &LastSynced() {
 	if (!parsed.isValid()) {
 		return 0;
 	}
-	parsed.setTimeZone(QTimeZone::UTC);
+	parsed.setTimeZone(QTimeZone::utc());
 	return parsed.toMSecsSinceEpoch();
 }
 
@@ -140,7 +141,7 @@ void Fetch(not_null<Main::Session*> session, uint64 userId) {
 			}
 			auto ids = std::vector<uint64>();
 			for (const auto &value : result.value(u"old_profile_ids"_q).toArray()) {
-				ids.push_back(uint64(value.toInteger()));
+				ids.push_back(uint64(value.toVariant().toLongLong()));
 			}
 			NumberHistory::StoreOldProfiles(userId, ids);
 		});

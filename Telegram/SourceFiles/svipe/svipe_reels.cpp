@@ -146,7 +146,7 @@ std::shared_ptr<Item> Feed::ParseItem(const QJsonObject &o) {
 	item->shareUrl = o.value(u"share_url"_q).toString();
 	item->width = o.value(u"width"_q).toInt();
 	item->height = o.value(u"height"_q).toInt();
-	item->durationMs = o.value(u"duration_ms"_q).toInteger();
+	item->durationMs = o.value(u"duration_ms"_q).toVariant().toLongLong();
 	item->topicId = o.value(u"topic_id"_q).toInt();
 	const auto thumb = o.value(u"thumb_b64"_q).toString();
 	if (!thumb.isEmpty()) {
@@ -269,7 +269,7 @@ void Feed::request() {
 				).arg(result.value(u"items"_q).toArray().size()));
 			const auto recId = result.value(u"recommendation_id"_q).toString();
 			if (const auto ttl = result.value(
-					u"recommendation_ttl_seconds"_q).toInteger(); ttl > 0) {
+					u"recommendation_ttl_seconds"_q).toVariant().toLongLong(); ttl > 0) {
 				RecTtl() = crl::time(ttl) * 1000;
 			}
 			const auto recAt = crl::now();
@@ -299,7 +299,7 @@ void Feed::request() {
 				item->shareUrl = o.value(u"share_url"_q).toString();
 				item->width = o.value(u"width"_q).toInt();
 				item->height = o.value(u"height"_q).toInt();
-				item->durationMs = o.value(u"duration_ms"_q).toInteger();
+				item->durationMs = o.value(u"duration_ms"_q).toVariant().toLongLong();
 				item->recId = recId;
 				item->recAt = recAt;
 				item->feedPosition = int(_items.size());
@@ -552,7 +552,7 @@ void Feed::tryUsername(
 		Fn<void(bool)> done,
 		bool back) {
 	const auto now = base::unixtime::now();
-	if (Storage::Get(_session, kBlockedUntilKey).toInteger() > now) {
+	if (Storage::Get(_session, kBlockedUntilKey).toVariant().toLongLong() > now) {
 		done(false);
 		return;
 	}
@@ -583,12 +583,12 @@ void Feed::pumpUsernames() {
 	auto next = std::move(_usernameQueue.front());
 	_usernameQueue.pop_front();
 	const auto now = base::unixtime::now();
-	if (Storage::Get(_session, kBlockedUntilKey).toInteger() > now) {
+	if (Storage::Get(_session, kBlockedUntilKey).toVariant().toLongLong() > now) {
 		next.done(false);
 		pumpUsernames();
 		return;
 	}
-	auto window = Storage::Get(_session, kWindowKey).toInteger();
+	auto window = Storage::Get(_session, kWindowKey).toVariant().toLongLong();
 	auto spent = Storage::Get(_session, kSpentKey).toInt();
 	if (now - window >= kUsernameWindow) {
 		window = now;

@@ -193,8 +193,10 @@ jobs:
 
           rem Release objects of the app are large: with every core compiling at once the runner's
           rem 16 GB ran out (C1060 "compiler is out of heap space" in run 6), so two projects at a
-          rem time with two compilers each.
-          cmake --build ..\out --config Release --parallel 2 -- /p:CL_MPCount=2
+          rem time with two compilers each. Run 7 still hit C1060 on the wallet sources: MSBuild had picked
+          rem the 32-bit compiler host, whose address space ends at 4 GB whatever the RAM, so the 64-bit
+          rem host is asked for explicitly.
+          cmake --build ..\out --config Release --parallel 2 -- /p:CL_MPCount=2 /p:PreferredToolArchitecture=x64
 
       - name: Collect the build.
         if: ${{ !inputs.only_cache }}

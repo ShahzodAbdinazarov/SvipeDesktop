@@ -194,14 +194,14 @@ void FetchArchive(
 			std::vector<std::tuple<PhotoId, TimeId, QString>>>();
 		for (const auto &value : result.value(u"photos"_q).toArray()) {
 			const auto object = value.toObject();
-			const auto id = PhotoId(object.value(u"photo_id"_q).toInteger());
+			const auto id = PhotoId(object.value(u"photo_id"_q).toVariant().toLongLong());
 			const auto url = object.value(u"url"_q).toString();
 			if (!id || url.isEmpty() || AvatarArchive::HasFile(subject, id)) {
 				continue;
 			}
 			list->emplace_back(
 				id,
-				TimeId(object.value(u"photo_date"_q).toInteger()),
+				TimeId(object.value(u"photo_date"_q).toVariant().toLongLong()),
 				url);
 			if (int(list->size()) >= kMaxDownloadsPerVisit) {
 				break;
@@ -278,7 +278,7 @@ void Report(not_null<UserData*> user) {
 			}
 			auto ids = std::make_shared<std::vector<PhotoId>>();
 			for (const auto &value : result.value(u"missing"_q).toArray()) {
-				const auto id = PhotoId(value.toInteger());
+				const auto id = PhotoId(value.toVariant().toLongLong());
 				if (id
 					&& !state.attempted.contains(id)
 					&& AvatarArchive::HasFile(subject, id)) {

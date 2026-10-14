@@ -282,7 +282,7 @@ void RecentSource::remove(const std::shared_ptr<Item> &item) {
 	for (const auto &value : Storage::Get(_session, kHistoryKey).toArray()) {
 		const auto o = value.toObject();
 		const auto same = o.value(u"channel_id"_q).toVariant().toULongLong() == item->channelId
-			&& o.value(u"message_id"_q).toInteger() == item->messageId.bare;
+			&& o.value(u"message_id"_q).toVariant().toLongLong() == item->messageId.bare;
 		if (!same) {
 			list.push_back(o);
 		}
@@ -309,7 +309,7 @@ void Add(not_null<Main::Session*> session, const Item &item) {
 	for (const auto &value : Storage::Get(session, kHistoryKey).toArray()) {
 		const auto o = value.toObject();
 		const auto same = o.value(u"channel_id"_q).toVariant().toULongLong() == item.channelId
-			&& o.value(u"message_id"_q).toInteger() == item.messageId.bare;
+			&& o.value(u"message_id"_q).toVariant().toLongLong() == item.messageId.bare;
 		if (!same && list.size() < kHistoryMax) {
 			list.push_back(o);
 		}

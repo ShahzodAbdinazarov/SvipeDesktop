@@ -468,7 +468,7 @@ QString ProfileImagesButton(int count) {
 }
 
 QString FloodWaitText(const QString &errorType) {
-	auto digits = qsizetype(0);
+	auto digits = 0;
 	while (digits < errorType.size()
 		&& errorType[errorType.size() - 1 - digits].isDigit()) {
 		++digits;
