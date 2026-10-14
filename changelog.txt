@@ -1,3 +1,7 @@
+7.3.2 (14.10.26)
+
+- Svipe Desktop 1.0.14: mini apps can ask for your Telegram contacts. You see one dialog naming the bot, and your answer is kept. To change it, use the Contacts switch on the bot's profile.
+
 7.3.1 (13.10.26)
 
 - Svipe Desktop 1.0.13: based on Telegram Desktop 7.3.1 with the new built-in Wallet. Video tab search, as on Android: recent searches, short and long videos together, and it finds a word even when it is misspelled.
