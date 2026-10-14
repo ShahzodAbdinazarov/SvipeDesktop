@@ -191,7 +191,10 @@ jobs:
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
 
-          cmake --build ..\out --config Release --parallel
+          rem Release objects of the app are large: with every core compiling at once the runner's
+          rem 16 GB ran out (C1060 "compiler is out of heap space" in run 6), so two projects at a
+          rem time with two compilers each.
+          cmake --build ..\out --config Release --parallel 2 -- /p:CL_MPCount=2
 
       - name: Collect the build.
         if: ${{ !inputs.only_cache }}
