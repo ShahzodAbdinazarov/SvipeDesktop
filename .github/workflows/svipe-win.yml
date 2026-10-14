@@ -169,6 +169,17 @@ jobs:
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
           key: ${{ runner.OS }}-x64-qt-v3-${{ env.CACHE_KEY }}
 
+      # Run 9 (two compilers) still ran out: C3859 "Failed to create virtual memory for PCH" is the
+      # system commit limit, not the 16 GB of RAM, and the runner's page file is small. A large page
+      # file on the second disk lifts that limit.
+      - name: Page file.
+        if: ${{ !inputs.only_cache }}
+        uses: al-cheb/configure-pagefile-action@v1.4
+        with:
+          minimum-size: 16GB
+          maximum-size: 32GB
+          disk-root: "D:"
+
       # Run 8 still hit C1060 inside Telegram.vcxproj: cmake_helpers passes a bare /MP, which starts
       # one compiler per core and ignores CL_MPCount, so four Release compilers of the app's heaviest
       # sources shared 16 GB. The submodule is patched here rather than forked.
