@@ -169,6 +169,17 @@ jobs:
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
           key: ${{ runner.OS }}-x64-qt-v3-${{ env.CACHE_KEY }}
 
+      # Run 8 still hit C1060 inside Telegram.vcxproj: cmake_helpers passes a bare /MP, which starts
+      # one compiler per core and ignores CL_MPCount, so four Release compilers of the app's heaviest
+      # sources shared 16 GB. The submodule is patched here rather than forked.
+      - name: Two compilers per project.
+        if: ${{ !inputs.only_cache }}
+        shell: bash
+        run: |
+          F="$TBUILD/$REPO_NAME/cmake/options_win.cmake"
+          sed -i 's|/MP     # Enable multi process build.|/MP2    # Enable multi process build.|' "$F"
+          grep -q '/MP2' "$F"
+
       # Debug and Release libraries together leave too little of C: for a Release build of the app
       # (run 4 compiled every library target, then failed with C1085 "No space left on device"), so
       # the build output lives on the runner's second disk behind a junction at the usual place.
