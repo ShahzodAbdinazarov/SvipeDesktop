@@ -695,8 +695,39 @@ auto DcOptions::lookup(
 	}
 	if (throughProxy) {
 		FilterIfHasWithFlag(result, Flag::f_static);
+	} else if (type == DcType::Regular || type == DcType::Temporary) {
+		appendBuiltInFallback(result, dcId);
 	}
 	return result;
+}
+
+void DcOptions::appendBuiltInFallback(Variants &variants, DcId dcId) const {
+	// Svipe: a config replaces the built-in addresses of a DC with its own list, and when every
+	// address on that list is unreachable from the user's network the app never connects again
+	// (seen 2026-10-15: DC 2 config gave only 149.154.167.41, refused, while the built-in .51
+	// answered). The built-in addresses go last, as extra test connections: the first socket
+	// that answers wins, so a working config address is still what gets used.
+	const auto append = [&](const auto &list, Variants::Address address, Flags flags) {
+		for (const auto &entry : list) {
+			if (entry.id != dcId) {
+				continue;
+			}
+			auto &tcp = variants.data[address][Variants::Tcp];
+			const auto known = ranges::any_of(tcp, [&](const Endpoint &e) {
+				return e.ip == entry.ip && e.port == entry.port;
+			});
+			if (!known) {
+				tcp.push_back(Endpoint(dcId, flags, entry.ip, entry.port, {}));
+			}
+		}
+	};
+	if (isTestMode()) {
+		append(kBuiltInDcsTest, Variants::IPv4, Flag::f_static | 0);
+		append(kBuiltInDcsIPv6Test, Variants::IPv6, Flag::f_static | Flag::f_ipv6);
+	} else {
+		append(kBuiltInDcs, Variants::IPv4, Flag::f_static | 0);
+		append(kBuiltInDcsIPv6, Variants::IPv6, Flag::f_static | Flag::f_ipv6);
+	}
 }
 
 bool DcOptions::hasMediaOnlyOptionsFor(DcId dcId) const {

@@ -132,6 +132,7 @@ private:
 	static std::vector<DcId> CountOptionsDifference(
 		const base::flat_map<DcId, std::vector<Endpoint>> &a,
 		const base::flat_map<DcId, std::vector<Endpoint>> &b);
+	void appendBuiltInFallback(Variants &variants, DcId dcId) const;
 	static void FilterIfHasWithFlag(Variants &variants, Flag flag);
 
 	[[nodiscard]] bool hasMediaOnlyOptionsFor(DcId dcId) const;
