@@ -113,6 +113,17 @@ case "$TARGET" in
   *) die "--publish takes dev or prod" ;;
 esac
 
+# The feed carries every platform (release_win.sh adds "win64"): merge "armac" into the feed the
+# site serves now instead of replacing it.
+NOW=$(curl -fsS -A "svipe-release" "$SITE/dl/desktop/current6?probe=$RANDOM$RANDOM" 2>/dev/null || echo '{}')
+python3 - "$NOW" "$ROOT/out/Release/current6" <<'PY'
+import json, sys
+feed = json.loads(sys.argv[1] or "{}")
+feed.update(json.load(open(sys.argv[2])))
+open(sys.argv[2], "w").write(json.dumps(feed, separators=(",", ":")) + "\n")
+PY
+echo "feed: $(cat "$ROOT/out/Release/current6")"
+
 $SSH "mkdir -p $WWW/desktop"
 $SCP "$ROOT/out/Release/$UPDATE" "root@169.58.191.228:$WWW/desktop/$UPDATE.new"
 $SCP "$ROOT/out/Release/current6" "root@169.58.191.228:$WWW/desktop/current6.new"
