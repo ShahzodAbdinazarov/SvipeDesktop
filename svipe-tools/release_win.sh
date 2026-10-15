@@ -122,10 +122,10 @@ EOF
 
 # From outside, as a visitor: the served bytes and the advertised version must be what we built.
 for i in $(seq 1 30); do
-  curl -fsS -A "svipe-release" "$SITE/desktop?lang=en" 2>/dev/null | grep -q "$FILE" && break
+  curl -fsS -A "svipe-release" "$SITE/desktop?lang=en&os=win" 2>/dev/null | grep -q "$FILE" && break
   sleep 3
 done
-curl -fsS -A "svipe-release" "$SITE/desktop?lang=en" | grep -q "$FILE" \
+curl -fsS -A "svipe-release" "$SITE/desktop?lang=en&os=win" | grep -q "$FILE" \
   || die "$SITE/desktop does not offer $FILE"
 GOT=$(curl -fsSL -A "svipe-release" "$SITE/dl/$FILE?probe=$RANDOM" | shasum -a 256 | cut -d' ' -f1)
 [ "$GOT" = "$SHA" ] || die "served installer hash $GOT != $SHA"
