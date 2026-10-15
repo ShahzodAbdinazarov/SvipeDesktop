@@ -12,8 +12,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/platform/win/wrl/wrl_implements_h.h"
 
-// {F11932D3-6110-4BBC-9B02-B2EC07A1BD19}
-class DECLSPEC_UUID("F11932D3-6110-4BBC-9B02-B2EC07A1BD19") ToastActivator
+// {9BC7FAAF-C078-42CB-A50E-EA722C123828} Svipe's own: Telegram Desktop's CLSID would route toast clicks to it
+class DECLSPEC_UUID("9BC7FAAF-C078-42CB-A50E-EA722C123828") ToastActivator
 	: public ::Microsoft::WRL::RuntimeClass<
 		::Microsoft::WRL::RuntimeClassFlags<::Microsoft::WRL::ClassicCom>,
 		INotificationActivationCallback,

@@ -169,6 +169,26 @@ jobs:
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
           key: ${{ runner.OS }}-x64-qt-v3-${{ env.CACHE_KEY }}
 
+      # The installer script is compiled once against stand-in files before the long build, so a
+      # mistake in it fails in a minute rather than after the app has compiled.
+      - name: Installer script check.
+        if: ${{ !inputs.only_cache }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          if [ ! -f "$ISCC" ]; then
+            choco install innosetup -y --no-progress >/dev/null
+          fi
+          DUMMY="$RUNNER_TEMP/iss-check"
+          mkdir -p "$DUMMY/modules/x64/d3d" "$DUMMY/out"
+          echo x > "$DUMMY/Svipe.exe"; echo x > "$DUMMY/Updater.exe"
+          echo x > "$DUMMY/modules/x64/d3d/d3dcompiler_47.dll"
+          "$ISCC" -Q /dMyAppVersion=0.0.1 "/dReleasePath=$(cygpath -w "$DUMMY")" \
+            "/dOutputDir=$(cygpath -w "$DUMMY/out")" \
+            "$(cygpath -w "$TBUILD/$REPO_NAME/svipe-tools/setup_win.iss")"
+          ls -la "$DUMMY/out"
+
       # Run 9 (two compilers) still ran out: C3859 "Failed to create virtual memory for PCH" is the
       # system commit limit, not the 16 GB of RAM, and the runner's page file is small. A large page
       # file on the second disk lifts that limit.
@@ -220,13 +240,47 @@ jobs:
           rem host is asked for explicitly.
           cmake --build ..\out --config Release --parallel 2 -- /p:CL_MPCount=2 /p:PreferredToolArchitecture=x64
 
-      - name: Collect the build.
+      # The same pieces tdesktop's Telegram/build/build.bat ships: Svipe.exe, Updater.exe and the
+      # d3dcompiler module, as an installer and as a v2 update package. The package is only packed
+      # here, not signed: the release key never leaves the Mac, where svipe-tools/release_win.sh
+      # embeds its signature (Packer -unsigned ... -local-key) and publishes.
+      - name: Package.
         if: ${{ !inputs.only_cache }}
+        shell: bash
         run: |
-          set OUT=%TBUILD%\%REPO_NAME%\out\Release
-          dir %OUT%
-          mkdir artifact
-          copy %OUT%\*.exe artifact\
+          set -euo pipefail
+          SRC="$TBUILD/$REPO_NAME"
+          OUT="$SRC/out/Release"
+          VERSION=$(grep '^AppVersion ' "$SRC/Telegram/build/version" | awk '{print $2}')
+          SVIPE_VERSION=$(head -1 "$SRC/Telegram/build/svipe_version")
+          ls -la "$OUT"
+          for f in Svipe.exe Updater.exe Packer.exe modules/x64/d3d/d3dcompiler_47.dll; do
+            [ -f "$OUT/$f" ] || { echo "missing $OUT/$f"; exit 1; }
+          done
+
+          ART="$GITHUB_WORKSPACE/artifact"
+          mkdir -p "$ART"
+          (cd "$OUT" && ./Packer.exe -version "$VERSION" -path Svipe.exe -path Updater.exe \
+            -path modules/x64/d3d/d3dcompiler_47.dll -target win64 -channel stable \
+            -keys-loc "$(cygpath -w "$SRC/Telegram/Resources/update")" \
+            -emit-signing-input signing-input.bin)
+          UPDATE="td-update-win-x64-$VERSION"
+          [ -f "$OUT/$UPDATE.unsigned" ] || { echo "Packer did not write $UPDATE.unsigned"; exit 1; }
+          cp "$OUT/$UPDATE.unsigned" "$OUT/signing-input.bin" "$ART/"
+
+          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          if [ ! -f "$ISCC" ]; then
+            choco install innosetup -y --no-progress >/dev/null
+          fi
+          "$ISCC" -Q "/dMyAppVersion=$SVIPE_VERSION" "/dReleasePath=$(cygpath -w "$OUT")" \
+            "/dOutputDir=$(cygpath -w "$ART")" "$(cygpath -w "$SRC/svipe-tools/setup_win.iss")"
+          [ -f "$ART/svipe-desktop-win64-setup.exe" ] || { echo "no installer"; exit 1; }
+
+          mkdir -p "$ART/app/modules/x64/d3d"
+          cp "$OUT/Svipe.exe" "$OUT/Updater.exe" "$ART/app/"
+          cp "$OUT/modules/x64/d3d/d3dcompiler_47.dll" "$ART/app/modules/x64/d3d/"
+          printf '%s\n%s\n' "$VERSION" "$SVIPE_VERSION" > "$ART/version.txt"
+          ls -laR "$ART"
 
       - uses: actions/upload-artifact@v7
         name: Upload the build.

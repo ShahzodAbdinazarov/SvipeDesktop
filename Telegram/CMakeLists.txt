@@ -2797,8 +2797,8 @@ if (NOT DESKTOP_APP_DISABLE_AUTOUPDATE AND NOT build_macstore AND NOT build_wins
         )
     endif()
 
-    # Svipe: our Mac release packs its own updates, see svipe-tools/release_mac.sh.
-    if (DESKTOP_APP_SPECIAL_TARGET OR APPLE)
+    # Svipe: our releases pack their own updates, see svipe-tools/release_mac.sh and release_win.sh.
+    if (DESKTOP_APP_SPECIAL_TARGET OR APPLE OR WIN32)
         add_executable(Packer)
         init_target(Packer)
 

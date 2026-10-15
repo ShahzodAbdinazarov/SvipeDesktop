@@ -18,7 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #endif // TDESKTOP_ALLOW_CLOSED_ALPHA
 
 // used in Updater.cpp and Setup.iss for Windows
-constexpr auto AppId = "{53F49750-6209-4FBF-9CA8-7A333C87D1ED}"_cs;
+constexpr auto AppId = "{42B58ADA-3B86-47F7-899D-E80AE491D7EF}"_cs; // Svipe's own: never Telegram Desktop's uninstall entry
 constexpr auto AppNameOld = "Telegram Win (Unofficial)"_cs;
 constexpr auto AppName = "Svipe Desktop"_cs;
 constexpr auto AppFile = "Telegram"_cs;
