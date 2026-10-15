@@ -148,10 +148,10 @@ EOF
 
 # From outside, as a visitor: the served bytes and the advertised version must be what we built.
 for i in $(seq 1 30); do
-  curl -fsS -A "svipe-release" "$SITE/desktop?lang=en" 2>/dev/null | grep -q "version $VERSION" && break
+  curl -fsS -A "svipe-release" "$SITE/desktop?lang=en" 2>/dev/null | grep "version $VERSION" >/dev/null && break
   sleep 3
 done
-curl -fsS -A "svipe-release" "$SITE/desktop?lang=en" | grep -q "version $VERSION" \
+curl -fsS -A "svipe-release" "$SITE/desktop?lang=en" | grep "version $VERSION" >/dev/null \
   || die "$SITE/desktop does not show version $VERSION"
 GOT=$(curl -fsSL -A "svipe-release" "$SITE/dl/$FILE" | shasum -a 256 | cut -d' ' -f1)
 [ "$GOT" = "$SHA" ] || die "served dmg hash $GOT != $SHA"
