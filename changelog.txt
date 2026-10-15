@@ -1,3 +1,7 @@
+7.3.3 (15.10.26)
+
+- Svipe Desktop 1.0.15: Mark as read in a message notification no longer opens the app. To open the chat, click the notification itself.
+
 7.3.2 (14.10.26)
 
 - Svipe Desktop 1.0.14: mini apps can ask for your Telegram contacts. You see one dialog naming the bot, and your answer is kept. To change it, use the Contacts switch on the bot's profile.
