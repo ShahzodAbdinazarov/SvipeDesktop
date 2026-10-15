@@ -107,6 +107,7 @@ void SetupDockMenu() {
 - (void) receiveSleepNote:(NSNotification*)note;
 
 - (void) ignoreApplicationActivationRightNow;
+- (void) stayInBackgroundRightNow;
 
 @end // @interface ApplicationDelegate
 
@@ -114,13 +115,16 @@ ApplicationDelegate *_sharedDelegate = nil;
 
 @implementation ApplicationDelegate {
 	bool _ignoreActivation;
+	bool _giveActivationBack;
 	base::Timer _ignoreActivationStop;
 }
 
 - (instancetype) init {
 	_ignoreActivation = false;
+	_giveActivationBack = false;
 	_ignoreActivationStop.setCallback([self] {
 		_ignoreActivation = false;
+		_giveActivationBack = false;
 	});
 	return [super init];
 }
@@ -139,6 +143,13 @@ ApplicationDelegate *_sharedDelegate = nil;
 }
 
 - (void) applicationDidBecomeActive:(NSNotification *)aNotification {
+	if (_giveActivationBack) {
+		// A notification action that is not meant to open the app (Mark as read): macOS
+		// activates us anyway, so hand the focus straight back to whatever had it.
+		_giveActivationBack = false;
+		[NSApp deactivate];
+		return;
+	}
 	Core::Sandbox::Instance().customEnterFromEventLoop([&] {
 		if (Core::IsAppLaunched() && !_ignoreActivation) {
 			Core::App().handleAppActivated();
@@ -188,6 +199,11 @@ ApplicationDelegate *_sharedDelegate = nil;
 - (void) ignoreApplicationActivationRightNow {
 	_ignoreActivation = true;
 	_ignoreActivationStop.callOnce(kIgnoreActivationTimeoutMs);
+}
+
+- (void) stayInBackgroundRightNow {
+	[self ignoreApplicationActivationRightNow];
+	_giveActivationBack = true;
 }
 
 @end // @implementation ApplicationDelegate
@@ -252,6 +268,12 @@ void objc_start() {
 void objc_ignoreApplicationActivationRightNow() {
 	if (_sharedDelegate) {
 		[_sharedDelegate ignoreApplicationActivationRightNow];
+	}
+}
+
+void objc_stayInBackgroundRightNow() {
+	if (_sharedDelegate) {
+		[_sharedDelegate stayInBackgroundRightNow];
 	}
 }
 
