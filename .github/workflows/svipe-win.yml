@@ -170,7 +170,8 @@ jobs:
           key: ${{ runner.OS }}-x64-qt-v3-${{ env.CACHE_KEY }}
 
       # The installer script is compiled once against stand-in files before the long build, so a
-      # mistake in it fails in a minute rather than after the app has compiled.
+      # mistake in it fails in a minute rather than after the app has compiled. MSYS_NO_PATHCONV keeps
+      # Git Bash from rewriting ISCC's /d options into paths.
       - name: Installer script check.
         if: ${{ !inputs.only_cache }}
         shell: bash
@@ -184,7 +185,7 @@ jobs:
           mkdir -p "$DUMMY/modules/x64/d3d" "$DUMMY/out"
           echo x > "$DUMMY/Svipe.exe"; echo x > "$DUMMY/Updater.exe"
           echo x > "$DUMMY/modules/x64/d3d/d3dcompiler_47.dll"
-          "$ISCC" -Q /dMyAppVersion=0.0.1 "/dReleasePath=$(cygpath -w "$DUMMY")" \
+          MSYS_NO_PATHCONV=1 "$ISCC" -Q /dMyAppVersion=0.0.1 "/dReleasePath=$(cygpath -w "$DUMMY")" \
             "/dOutputDir=$(cygpath -w "$DUMMY/out")" \
             "$(cygpath -w "$TBUILD/$REPO_NAME/svipe-tools/setup_win.iss")"
           ls -la "$DUMMY/out"
@@ -272,7 +273,7 @@ jobs:
           if [ ! -f "$ISCC" ]; then
             choco install innosetup -y --no-progress >/dev/null
           fi
-          "$ISCC" -Q "/dMyAppVersion=$SVIPE_VERSION" "/dReleasePath=$(cygpath -w "$OUT")" \
+          MSYS_NO_PATHCONV=1 "$ISCC" -Q "/dMyAppVersion=$SVIPE_VERSION" "/dReleasePath=$(cygpath -w "$OUT")" \
             "/dOutputDir=$(cygpath -w "$ART")" "$(cygpath -w "$SRC/svipe-tools/setup_win.iss")"
           [ -f "$ART/svipe-desktop-win64-setup.exe" ] || { echo "no installer"; exit 1; }
 
