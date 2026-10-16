@@ -27,6 +27,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/peers/edit_discussion_link_box.h"
 #include "boxes/peers/edit_peer_requests_box.h"
 #include "boxes/peers/edit_peer_reactions.h"
+#include "svipe/svipe_bot_tab.h"
+#include "svipe/svipe_strings.h"
 #include "boxes/peers/replace_boost_box.h"
 #include "boxes/peers/toggle_topics_box.h"
 #include "boxes/peers/verify_peers_box.h"
@@ -1657,6 +1659,16 @@ void Controller::fillManageSection() {
 			std::move(label),
 			[=] { editReactions(); },
 			{ &st::menuIconGroupReactions });
+	}
+	// Svipe: the channel's bot tab (svipe.uz/bots/profile-tabs).
+	if (const auto channel = _peer->asBroadcast()
+		; channel && channel->canEditInformation()) {
+		AddButtonWithCount(
+			_controls.buttonsLayout,
+			Svipe::TrValue(Svipe::Str::BotTab),
+			rpl::single(QString()),
+			[=] { Svipe::BotTab::ShowSettingsBox(_navigation->uiShow(), channel); },
+			{ &st::menuIconBot });
 	}
 	if (canEditWelcomeMessages) {
 		const auto history = _peer->owner().history(_peer);

@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_inner_widget.h"
 
 #include "svipe/svipe_profile_images.h"
+#include "svipe/svipe_bot_tab.h"
 #include "svipe/svipe_old_identity.h"
 
 #include "info/info_controller.h"
@@ -321,6 +322,10 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			}
 			if (_peer->asBot() || _peer->asBroadcast()) {
 				tabs.push_back(MakeSimilarPeersTabDescriptor(_peer));
+			}
+			// Svipe: the bot tab the channel's admin added.
+			if (const auto channel = _peer->asBroadcast()) {
+				tabs.push_back(Svipe::BotTab::MakeTabDescriptor(channel));
 			}
 			// Svipe: current and kept-after-deletion profile photos, the last tab as on Android.
 			if (const auto user = _peer->asUser(); user && !user->isBot()) {

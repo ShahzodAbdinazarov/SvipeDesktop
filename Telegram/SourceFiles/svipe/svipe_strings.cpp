@@ -354,6 +354,86 @@ Translations Lookup(Str key) {
 		"Contacts",
 		"Kontaktlar",
 		"Контакты" };
+	case Str::BotTab: return {
+		"Bot tab",
+		"Bot tabi",
+		"Вкладка бота" };
+	case Str::BotTabCurrent: return {
+		"Tab on the channel profile",
+		"Kanal profilidagi tab",
+		"Вкладка в профиле канала" };
+	case Str::BotTabActive: return {
+		"“%1” from %2",
+		"%2 botining “%1” tabi",
+		"«%1» от %2" };
+	case Str::BotTabPending: return {
+		"Waiting for %1 to confirm",
+		"%1 tasdiqlashi kutilmoqda",
+		"Ожидает подтверждения от %1" };
+	case Str::BotTabRefused: return {
+		"%1 declined the request",
+		"%1 so'rovni rad etdi",
+		"%1 отклонил запрос" };
+	case Str::BotTabNone: return {
+		"No tab",
+		"Tab yo'q",
+		"Вкладки нет" };
+	case Str::BotTabTitleHint: return {
+		"Tab name",
+		"Tab nomi",
+		"Название вкладки" };
+	case Str::BotTabRename: return {
+		"Save name",
+		"Nomni saqlash",
+		"Сохранить название" };
+	case Str::BotTabRemove: return {
+		"Remove tab",
+		"Tabni olib tashlash",
+		"Убрать вкладку" };
+	case Str::BotTabReplace: return {
+		"Replace with another bot",
+		"Boshqa botga almashtirish",
+		"Заменить другим ботом" };
+	case Str::BotTabAttach: return {
+		"Add a bot's tab",
+		"Bot tabini qo'shish",
+		"Добавить вкладку бота" };
+	case Str::BotTabUsernameHint: return {
+		"Bot username, e.g. @shop_bot",
+		"Bot username'i, masalan @shop_bot",
+		"Имя бота, например @shop_bot" };
+	case Str::BotTabSend: return {
+		"Send request",
+		"So'rov yuborish",
+		"Отправить запрос" };
+	case Str::BotTabInfo: return {
+		"The bot must be registered with Svipe. It checks that you are an admin of this channel, then shows its tab on the channel profile in Svipe.",
+		"Bot Svipe'da ro'yxatdan o'tgan bo'lishi kerak. U sizning shu kanal admini ekaningizni tekshiradi, so'ng Svipe'da kanal profilida o'z tabini ko'rsatadi.",
+		"Бот должен быть зарегистрирован в Svipe. Он проверит, что вы администратор этого канала, и покажет свою вкладку в профиле канала в Svipe." };
+	case Str::BotTabErrorNotRegistered: return {
+		"This bot isn't registered with Svipe.",
+		"Bu bot Svipe'da ro'yxatdan o'tmagan.",
+		"Этот бот не зарегистрирован в Svipe." };
+	case Str::BotTabErrorRefused: return {
+		"This bot declined the request.",
+		"Bu bot so'rovni rad etgan.",
+		"Этот бот отклонил запрос." };
+	case Str::BotTabErrorNotAllowed: return {
+		"Only the admin who added the tab can do this.",
+		"Buni faqat tabni qo'shgan admin qila oladi.",
+		"Это может только администратор, который добавил вкладку." };
+	case Str::BotTabErrorNoRename: return {
+		"The bot doesn't allow renaming its tab.",
+		"Bot o'z tabining nomini o'zgartirishga ruxsat bermagan.",
+		"Бот не разрешает переименовывать свою вкладку." };
+	case Str::BotTabReport: return {
+		"Report this tab",
+		"Tab ustidan shikoyat qilish",
+		"Пожаловаться на вкладку" };
+	case Str::BotTabReported: return {
+		"Thank you, we'll look into it.",
+		"Rahmat, ko'rib chiqamiz.",
+		"Спасибо, мы проверим." };
 	case Str::AvatarSettingsFailed: return {
 		"Couldn't reach the server. Try again.",
 		"Serverga ulanib bo'lmadi. Qayta urinib ko'ring.",

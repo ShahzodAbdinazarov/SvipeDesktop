@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_shared_media_classic.h"
 
 #include "svipe/svipe_profile_images.h"
+#include "svipe/svipe_bot_tab.h"
 
 #include "core/ui_integration.h"
 #include "data/components/recent_shared_media_gifts.h"
@@ -369,6 +370,15 @@ object_ptr<Ui::SlideWrap<Ui::RpWidget>> SetupSharedMediaClassic(
 		addSimilarPeersButton(bot, st::infoIconMediaBot);
 	} else if (const auto channel = peer->asBroadcast()) {
 		addSimilarPeersButton(channel, st::infoIconMediaChannel);
+		// Svipe: the bot tab the channel's admin added.
+		if (!topic && !sublist) {
+			Svipe::BotTab::AddClassicButton(
+				content,
+				controller->parentController(),
+				channel,
+				tracker,
+				st::infoIconMediaBot);
+		}
 	} else if (const auto user = peer->asUser()) {
 		addCommonGroupsButton(user, st::infoIconMediaGroup);
 	}

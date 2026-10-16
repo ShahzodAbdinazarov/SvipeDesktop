@@ -2024,6 +2024,8 @@ PRIVATE
     svipe/svipe_avatar_sync.h
     svipe/svipe_attach_menu.cpp
     svipe/svipe_attach_menu.h
+    svipe/svipe_bot_tab.cpp
+    svipe/svipe_bot_tab.h
     svipe/svipe_bot_contacts.cpp
     svipe/svipe_bot_contacts.h
     svipe/svipe_bot_mute.cpp
