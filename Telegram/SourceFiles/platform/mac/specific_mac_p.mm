@@ -42,6 +42,7 @@ using Platform::NS2QString;
 namespace {
 
 constexpr auto kIgnoreActivationTimeoutMs = 500;
+constexpr auto kUndoActivationWindowMs = crl::time(1500);
 
 void SetupDockMenu() {
 	static const auto DockMenu = std::make_unique<QMenu>();
@@ -101,6 +102,7 @@ void SetupDockMenu() {
 }
 
 - (BOOL) applicationShouldHandleReopen:(NSApplication *)theApplication hasVisibleWindows:(BOOL)flag;
+- (void) applicationWillBecomeActive:(NSNotification *)aNotification;
 - (void) applicationDidBecomeActive:(NSNotification *)aNotification;
 - (void) applicationDidResignActive:(NSNotification *)aNotification;
 - (void) receiveWakeNote:(NSNotification*)note;
@@ -117,11 +119,19 @@ ApplicationDelegate *_sharedDelegate = nil;
 	bool _ignoreActivation;
 	bool _giveActivationBack;
 	base::Timer _ignoreActivationStop;
+	// What things looked like just before the last activation, so an activation that only a
+	// notification's Mark as read caused can be undone after the fact.
+	crl::time _becameActiveAt;
+	bool _hiddenBeforeActivation;
+	NSRunningApplication *_previousApp;
 }
 
 - (instancetype) init {
 	_ignoreActivation = false;
 	_giveActivationBack = false;
+	_becameActiveAt = 0;
+	_hiddenBeforeActivation = false;
+	_previousApp = nil;
 	_ignoreActivationStop.setCallback([self] {
 		_ignoreActivation = false;
 		_giveActivationBack = false;
@@ -142,7 +152,22 @@ ApplicationDelegate *_sharedDelegate = nil;
 	return YES;
 }
 
+- (void) applicationWillBecomeActive:(NSNotification *)aNotification {
+	[_previousApp release];
+	_previousApp = [[[NSWorkspace sharedWorkspace] frontmostApplication] retain];
+	_hiddenBeforeActivation = true;
+	Core::Sandbox::Instance().customEnterFromEventLoop([&] {
+		if (Core::IsAppLaunched()) {
+			if (const auto window = Core::App().activeWindow()) {
+				const auto widget = window->widget();
+				_hiddenBeforeActivation = widget->isHidden() || widget->isMinimized();
+			}
+		}
+	});
+}
+
 - (void) applicationDidBecomeActive:(NSNotification *)aNotification {
+	_becameActiveAt = crl::now();
 	if (_giveActivationBack) {
 		// A notification action that is not meant to open the app (Mark as read): macOS
 		// activates us anyway, so hand the focus straight back to whatever had it.
@@ -202,8 +227,32 @@ ApplicationDelegate *_sharedDelegate = nil;
 }
 
 - (void) stayInBackgroundRightNow {
-	[self ignoreApplicationActivationRightNow];
-	_giveActivationBack = true;
+	if (![NSApp isActive]) {
+		// The activation is still to come: swallow it when it arrives.
+		[self ignoreApplicationActivationRightNow];
+		_giveActivationBack = true;
+		return;
+	}
+	// macOS usually activates us BEFORE telling us which button was clicked, so by now the
+	// window may already be up. If that activation is this click's (just now), undo it.
+	if (crl::now() - _becameActiveAt > kUndoActivationWindowMs) {
+		return; // we were already in front; nothing was opened by the click
+	}
+	if (_hiddenBeforeActivation) {
+		Core::Sandbox::Instance().customEnterFromEventLoop([&] {
+			if (Core::IsAppLaunched()) {
+				if (const auto window = Core::App().activeWindow()) {
+					window->widget()->hide();
+				}
+			}
+		});
+	}
+	NSRunningApplication *current = [NSRunningApplication currentApplication];
+	if (_previousApp && ![_previousApp isEqual:current]) {
+		[_previousApp activateWithOptions:0];
+	} else {
+		[NSApp deactivate];
+	}
 }
 
 @end // @implementation ApplicationDelegate

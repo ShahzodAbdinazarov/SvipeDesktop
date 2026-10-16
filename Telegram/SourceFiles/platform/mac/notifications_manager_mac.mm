@@ -190,9 +190,9 @@ using Manager = Platform::Notifications::Manager;
 		if (actionId) {
 			const auto actionStr = QString::fromNSString(actionId);
 			// Mark as read is for messages you are NOT going to open: clicking the notification
-			// itself is how you open the chat. So the click must not bring the app forward. The
-			// activation arrives after this callback, and only when we were in the background.
-			if ([actionId isEqualToString:@"markAsRead"] && ![NSApp isActive]) {
+			// itself is how you open the chat. So the click must not bring the app forward,
+			// whether macOS activates us before this callback or after it.
+			if ([actionId isEqualToString:@"markAsRead"]) {
 				objc_stayInBackgroundRightNow();
 			}
 			crl::on_main(manager, [=] {
