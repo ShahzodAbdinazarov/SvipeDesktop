@@ -180,10 +180,7 @@ void FetchArchive(
 		PhotoId proof,
 		const QString &token) {
 	const auto subject = peerToUser(user->id);
-	const auto self = user->isSelf();
-	if (!proof && !self) {
-		return;
-	}
+	// Without a proof the server shows only what this account already saw, on any device.
 	const auto path = u"/v1/avatars/%1"_q.arg(subject.bare)
 		+ (proof ? u"?proof_photo_id=%1"_q.arg(qint64(proof)) : QString());
 	Api::Get(path, token, [=](QJsonObject result, int code) {
@@ -211,6 +208,24 @@ void FetchArchive(
 	});
 }
 
+void FetchWithoutProof(
+		not_null<Main::Session*> session,
+		not_null<UserData*> user) {
+	static auto last = base::flat_map<UserId, crl::time>();
+	const auto subject = peerToUser(user->id);
+	const auto now = crl::now();
+	if (const auto i = last.find(subject); i != end(last)
+		&& now - i->second < kMinReportInterval) {
+		return;
+	}
+	last[subject] = now;
+	Auth::EnsureToken(session, [=](QString token) {
+		if (!token.isEmpty()) {
+			FetchArchive(session, user, PhotoId(), token);
+		}
+	});
+}
+
 void Report(not_null<UserData*> user) {
 	const auto session = &user->session();
 	auto &state = GlobalState();
@@ -219,7 +234,15 @@ void Report(not_null<UserData*> user) {
 	}
 	const auto subject = peerToUser(user->id);
 	const auto live = AvatarArchive::Live(user);
-	const auto gone = AvatarArchive::Deleted(user); // empty unless the live list is complete
+	if (live.none) {
+		// No photo we can see now: deleted, or hidden from us. No evidence of deletion, so nothing
+		// is reported, but this account may have seen the photos on another device.
+		FetchWithoutProof(session, user);
+		return;
+	}
+	const auto gone = live.complete
+		? AvatarArchive::Deleted(user)
+		: std::vector<AvatarArchive::Photo>();
 	if (live.ids.empty() && gone.empty()) {
 		return;
 	}

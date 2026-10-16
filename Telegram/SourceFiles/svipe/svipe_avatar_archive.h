@@ -47,6 +47,7 @@ void RecordSynced(UserId user, PhotoId photo, TimeId date);
 struct LiveSet {
 	std::vector<PhotoId> ids;
 	bool complete = false; // every page arrived: a captured id missing here really was deleted
+	bool none = false; // the server listed no photo at all: deleted, or hidden from us
 };
 [[nodiscard]] LiveSet Live(not_null<UserData*> user);
 
