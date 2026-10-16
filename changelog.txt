@@ -1,3 +1,7 @@
+7.3.7 (17.10.26)
+
+- Svipe Desktop 1.0.19: a channel's admins can add a bot's tab to the channel profile, in Manage channel → Bot tab. The bot names the tab and fills it with cards that open its mini app. Mark as read in a message notification on macOS no longer brings the app to the front.
+
 7.3.6 (16.10.26)
 
 - Svipe Desktop 1.0.18: the Profile Images tab appears as soon as the profile opens. Photos you kept from someone who now has no profile photo are shown again, including the ones kept on your other devices.
