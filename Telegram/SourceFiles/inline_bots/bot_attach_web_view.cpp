@@ -874,6 +874,7 @@ public:
 private:
 	void paintEvent(QPaintEvent *e) override;
 	void mouseMoveEvent(QMouseEvent *e) override;
+	void enterEventHook(QEnterEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
 	void contextMenuEvent(QContextMenuEvent *e) override;
 
@@ -915,6 +916,12 @@ AttachStrip::AttachStrip(
 		}
 	});
 	enableMouseSelecting();
+
+	// ItemBase turns mouse tracking off while selected, but the strip
+	// needs every move to follow the cell under the cursor.
+	selects() | rpl::on_next([=] {
+		setMouseTracking(true);
+	}, lifetime());
 }
 
 void AttachStrip::setEntries(std::vector<AttachStripEntry> entries) {
@@ -967,7 +974,7 @@ void AttachStrip::setOver(int index) {
 	setCursor((_over >= 0) ? style::cur_pointer : style::cur_default);
 	update();
 	if (_over >= 0) {
-		Ui::Tooltip::Show(1000, this);
+		Ui::Tooltip::Show(300, this);
 	} else {
 		Ui::Tooltip::Hide();
 	}
@@ -1004,6 +1011,15 @@ void AttachStrip::paintEvent(QPaintEvent *e) {
 void AttachStrip::mouseMoveEvent(QMouseEvent *e) {
 	ItemBase::mouseMoveEvent(e);
 	setOver(cellAt(e->pos()));
+	if (_over >= 0) {
+		// Any move hides the tooltip, so keep it coming back.
+		Ui::Tooltip::Show(300, this);
+	}
+}
+
+void AttachStrip::enterEventHook(QEnterEvent *e) {
+	ItemBase::enterEventHook(e);
+	setOver(cellAt(mapFromGlobal(QCursor::pos())));
 }
 
 void AttachStrip::leaveEventHook(QEvent *e) {
@@ -1047,7 +1063,8 @@ QPoint AttachStrip::tooltipPos() const {
 }
 
 bool AttachStrip::tooltipWindowActive() const {
-	return Ui::AppInFocus() && Ui::InFocusChain(window());
+	// The dropdown is a separate window that never takes focus.
+	return Ui::AppInFocus() && isVisible();
 }
 
 bool AttachStrip::isEnabled() const {
