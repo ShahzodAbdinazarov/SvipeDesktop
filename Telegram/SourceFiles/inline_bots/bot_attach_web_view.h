@@ -337,6 +337,8 @@ private:
 	QJsonObject botContactsCheck() override;
 	void botContactsRequest(Fn<void(QJsonObject)> callback) override;
 	void botContactsOpenSettings() override;
+	QString botAttachMenuStatus() override;
+	void botAttachMenuAdd(Fn<void(bool added)> callback) override;
 	void botClose() override;
 
 	const std::shared_ptr<Ui::Show> _parentShow;

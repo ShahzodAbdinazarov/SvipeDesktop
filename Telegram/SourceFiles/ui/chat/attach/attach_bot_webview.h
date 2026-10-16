@@ -143,6 +143,9 @@ public:
 	[[nodiscard]] virtual QJsonObject botContactsCheck() = 0;
 	virtual void botContactsRequest(Fn<void(QJsonObject)> callback) = 0;
 	virtual void botContactsOpenSettings() = 0;
+	// Svipe: any bot in the attachment menu (svipe/svipe_attach_menu.h).
+	[[nodiscard]] virtual QString botAttachMenuStatus() = 0;
+	virtual void botAttachMenuAdd(Fn<void(bool added)> callback) = 0;
 	virtual void botClose() = 0;
 };
 
@@ -295,6 +298,7 @@ private:
 	void requestPhone();
 	void replyRequestPhone(bool shared);
 	void requestContacts();
+	void requestAttachMenuAdd();
 	void requestPermission(Webview::PermissionType type, Fn<void(bool)> done);
 	void invokeCustomMethod(const QJsonObject &args);
 	void replyCustomMethod(QJsonValue requestId, QJsonObject response);

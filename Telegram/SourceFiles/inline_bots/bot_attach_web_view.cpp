@@ -85,6 +85,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/menu/menu_action.h"
 #include "ui/widgets/menu/menu_item_base.h"
 #include "ui/widgets/popup_menu.h"
+#include "ui/widgets/tooltip.h"
+#include "ui/round_rect.h"
 #include "wallet/wallet_panel.h"
 #include "wallet/wallet_session.h"
 #include "wallet/wallet_user_addresses.h"
@@ -96,6 +98,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat.h"
+#include "styles/style_chat_helpers.h" // emojiSuggestionSize.
+#include "svipe/svipe_attach_menu.h"
 #include "svipe/svipe_bot_contacts.h"
 #include "svipe/svipe_strings.h"
 #include "styles/style_info.h" // infoVerifiedStar.
@@ -832,6 +836,258 @@ void BotAction::handleKeyPress(not_null<QKeyEvent*> e) {
 	}
 }
 
+// Svipe: the attachment menu as one row of icons, like the emoji
+// suggestions above the field: a rounded cell lights up under the mouse and
+// the name shows in a tooltip. Bots follow the built-in items in the same row.
+struct AttachStripEntry {
+	QString text;
+	const style::icon *icon = nullptr;
+	UserData *bot = nullptr;
+	std::shared_ptr<Data::DocumentMedia> media;
+	Fn<void()> callback;
+};
+
+class AttachStrip final
+	: public Ui::Menu::ItemBase
+	, public Ui::AbstractTooltipShower {
+public:
+	AttachStrip(
+		not_null<Ui::Menu::Menu*> parent,
+		std::shared_ptr<Ui::Show> show,
+		const style::Menu &st);
+
+	void setEntries(std::vector<AttachStripEntry> entries);
+	[[nodiscard]] const std::vector<AttachStripEntry> &entries() const {
+		return _entries;
+	}
+
+	bool isEnabled() const override;
+	not_null<QAction*> action() const override;
+	void handleKeyPress(not_null<QKeyEvent*> e) override;
+
+	[[nodiscard]] rpl::producer<bool> forceShown() const;
+
+	QString tooltipText() const override;
+	QPoint tooltipPos() const override;
+	bool tooltipWindowActive() const override;
+
+private:
+	void paintEvent(QPaintEvent *e) override;
+	void mouseMoveEvent(QMouseEvent *e) override;
+	void leaveEventHook(QEvent *e) override;
+	void contextMenuEvent(QContextMenuEvent *e) override;
+
+	QPoint prepareRippleStartPosition() const override;
+	QImage prepareRippleMask() const override;
+	int contentHeight() const override;
+
+	[[nodiscard]] QRect cellRect(int index) const;
+	[[nodiscard]] int cellAt(QPoint position) const;
+	void setOver(int index);
+
+	const std::shared_ptr<Ui::Show> _show;
+	const not_null<QAction*> _dummyAction;
+	std::vector<AttachStripEntry> _entries;
+	std::vector<base::unique_qptr<MenuBotIcon>> _icons;
+	base::flat_map<not_null<UserData*>, Ui::PeerUserpicView> _userpics;
+	Ui::RoundRect _overRect;
+	base::unique_qptr<Ui::PopupMenu> _menu;
+	rpl::event_stream<bool> _forceShown;
+	int _over = -1;
+
+};
+
+AttachStrip::AttachStrip(
+	not_null<Ui::Menu::Menu*> parent,
+	std::shared_ptr<Ui::Show> show,
+	const style::Menu &st)
+: ItemBase(parent, st)
+, _show(std::move(show))
+, _dummyAction(Ui::CreateChild<QAction>(parent))
+, _overRect(st::roundRadiusLarge, st::emojiPanHover) {
+	setAcceptBoth(false);
+	setMouseTracking(true);
+	setActionTriggered([=] {
+		if (_over >= 0 && _over < int(_entries.size())) {
+			if (const auto callback = _entries[_over].callback) {
+				callback();
+			}
+		}
+	});
+	enableMouseSelecting();
+}
+
+void AttachStrip::setEntries(std::vector<AttachStripEntry> entries) {
+	_entries = std::move(entries);
+	_icons.clear();
+	for (auto i = 0; i != int(_entries.size()); ++i) {
+		const auto &entry = _entries[i];
+		if (entry.bot && entry.media) {
+			auto icon = base::make_unique_q<MenuBotIcon>(this, entry.media);
+			const auto cell = cellRect(i);
+			icon->move(
+				cell.x() + (cell.width() - icon->width()) / 2,
+				cell.y() + (cell.height() - icon->height()) / 2);
+			_icons.push_back(std::move(icon));
+		}
+	}
+	const auto padding = st::emojiSuggestionsPadding;
+	setMinWidth(padding.left()
+		+ int(_entries.size()) * st::emojiSuggestionSize
+		+ padding.right());
+	resize(minWidth(), contentHeight());
+	setOver(-1);
+	update();
+}
+
+QRect AttachStrip::cellRect(int index) const {
+	const auto size = st::emojiSuggestionSize;
+	return QRect(
+		st::emojiSuggestionsPadding.left() + index * size,
+		0,
+		size,
+		size);
+}
+
+int AttachStrip::cellAt(QPoint position) const {
+	const auto size = st::emojiSuggestionSize;
+	const auto x = position.x() - st::emojiSuggestionsPadding.left();
+	if (x < 0 || position.y() < 0 || position.y() >= size) {
+		return -1;
+	}
+	const auto index = x / size;
+	return (index < int(_entries.size())) ? index : -1;
+}
+
+void AttachStrip::setOver(int index) {
+	if (_over == index) {
+		return;
+	}
+	_over = index;
+	setCursor((_over >= 0) ? style::cur_pointer : style::cur_default);
+	update();
+	if (_over >= 0) {
+		Ui::Tooltip::Show(1000, this);
+	} else {
+		Ui::Tooltip::Hide();
+	}
+}
+
+void AttachStrip::paintEvent(QPaintEvent *e) {
+	auto p = Painter(this);
+	p.fillRect(e->rect(), st::menuBg);
+	if (_over >= 0) {
+		_overRect.paint(p, cellRect(_over));
+	}
+	const auto userpicSize = st::emojiSuggestionSize - 2 * st::lineWidth * 6;
+	for (auto i = 0; i != int(_entries.size()); ++i) {
+		const auto &entry = _entries[i];
+		const auto cell = cellRect(i);
+		if (entry.icon) {
+			entry.icon->paint(
+				p,
+				cell.x() + (cell.width() - entry.icon->width()) / 2,
+				cell.y() + (cell.height() - entry.icon->height()) / 2,
+				width());
+		} else if (entry.bot && !entry.media) {
+			auto &view = _userpics[entry.bot];
+			entry.bot->paintUserpic(
+				p,
+				view,
+				cell.x() + (cell.width() - userpicSize) / 2,
+				cell.y() + (cell.height() - userpicSize) / 2,
+				userpicSize);
+		}
+	}
+}
+
+void AttachStrip::mouseMoveEvent(QMouseEvent *e) {
+	ItemBase::mouseMoveEvent(e);
+	setOver(cellAt(e->pos()));
+}
+
+void AttachStrip::leaveEventHook(QEvent *e) {
+	ItemBase::leaveEventHook(e);
+	setOver(-1);
+}
+
+void AttachStrip::contextMenuEvent(QContextMenuEvent *e) {
+	const auto index = cellAt(e->pos());
+	if (index < 0 || !_entries[index].bot) {
+		return;
+	}
+	const auto bot = _entries[index].bot;
+	_menu = nullptr;
+	_menu = base::make_unique_q<Ui::PopupMenu>(
+		this,
+		st::popupMenuWithIcons);
+	_menu->addAction(tr::lng_bot_remove_from_menu(tr::now), [=] {
+		if (Svipe::AttachMenu::Contains(bot)) {
+			Svipe::AttachMenu::Remove(_show, bot);
+		} else {
+			bot->session().attachWebView().removeFromMenu(_show, bot);
+		}
+	}, &st::menuIconDelete);
+	QObject::connect(_menu, &QObject::destroyed, [=] {
+		_forceShown.fire(false);
+	});
+	_forceShown.fire(true);
+	_menu->popup(e->globalPos());
+	e->accept();
+}
+
+QString AttachStrip::tooltipText() const {
+	return (_over >= 0 && _over < int(_entries.size()))
+		? _entries[_over].text
+		: QString();
+}
+
+QPoint AttachStrip::tooltipPos() const {
+	return QCursor::pos();
+}
+
+bool AttachStrip::tooltipWindowActive() const {
+	return Ui::AppInFocus() && Ui::InFocusChain(window());
+}
+
+bool AttachStrip::isEnabled() const {
+	return !_entries.empty();
+}
+
+not_null<QAction*> AttachStrip::action() const {
+	return _dummyAction;
+}
+
+rpl::producer<bool> AttachStrip::forceShown() const {
+	return _forceShown.events();
+}
+
+void AttachStrip::handleKeyPress(not_null<QKeyEvent*> e) {
+	const auto key = e->key();
+	const auto count = int(_entries.size());
+	if (!count) {
+		return;
+	} else if (key == Qt::Key_Left) {
+		setOver((_over <= 0) ? (count - 1) : (_over - 1));
+	} else if (key == Qt::Key_Right) {
+		setOver((_over < 0 || _over + 1 >= count) ? 0 : (_over + 1));
+	} else if ((key == Qt::Key_Enter || key == Qt::Key_Return) && _over >= 0) {
+		setClicked(Ui::Menu::TriggeredSource::Keyboard);
+	}
+}
+
+QPoint AttachStrip::prepareRippleStartPosition() const {
+	return Ui::RippleButton::DisabledRippleStartPosition();
+}
+
+QImage AttachStrip::prepareRippleMask() const {
+	return QImage();
+}
+
+int AttachStrip::contentHeight() const {
+	return st::emojiSuggestionSize;
+}
+
 } // namespace
 
 WebViewResultData ParseWebViewResult(const MTPWebViewResult &result) {
@@ -1391,6 +1647,19 @@ void WebViewInstance::requestWithMenuAdd() {
 	const auto done = crl::guard(this, [=](Result value, PeerTypes types) {
 		if (value == Result::Cancelled) {
 			close();
+		} else if (value == Result::Unsupported
+			&& Svipe::AttachMenu::CanAdd(_bot)) {
+			// Svipe: a bot Telegram didn't pick goes to Svipe's own list
+			// (svipe/svipe_attach_menu.h), asked with Telegram's dialog.
+			Svipe::AttachMenu::Request(_parentShow, _bot, false, crl::guard(
+				this,
+				[=](bool, bool added) {
+					if (added && _bot->botInfo && _bot->botInfo->hasMainApp) {
+						requestMain();
+					} else {
+						close();
+					}
+				}));
 		} else if (value == Result::Unsupported) {
 			_parentShow->showToast(tr::lng_bot_menu_not_supported(tr::now));
 			close();
@@ -2434,6 +2703,26 @@ void WebViewInstance::botContactsRequest(Fn<void(QJsonObject)> callback) {
 	panel->showBox(std::move(box));
 }
 
+QString WebViewInstance::botAttachMenuStatus() {
+	// Telegram's own attach bots are in the menu already.
+	const auto &bots = _session->attachWebView().attachBots();
+	const auto i = ranges::find(bots, _bot, &AttachWebViewBot::user);
+	if (i != end(bots) && !i->inactive && i->inAttachMenu) {
+		return u"added"_q;
+	}
+	return Svipe::AttachMenu::Status(_bot);
+}
+
+void WebViewInstance::botAttachMenuAdd(Fn<void(bool added)> callback) {
+	if (botAttachMenuStatus() == u"added"_q) {
+		callback(true);
+		return;
+	}
+	Svipe::AttachMenu::Request(uiShow(), _bot, true, [=](bool, bool added) {
+		callback(added);
+	});
+}
+
 void WebViewInstance::botContactsOpenSettings() {
 	if (const auto strong = _context.controller.get()) {
 		strong->showPeerInfo(_bot);
@@ -2503,6 +2792,10 @@ AttachWebView::AttachWebView(not_null<Main::Session*> session)
 , _storage(std::make_unique<Storage>(session))
 , _refreshTimer([=] { requestBots(); }) {
 	_refreshTimer.callEach(kRefreshBotsTimeout);
+	Svipe::AttachMenu::Changes(
+	) | rpl::on_next([=] {
+		_attachBotsUpdates.fire({});
+	}, _lifetime);
 	_session->data().joinChatWebViewDecision(
 	) | rpl::on_next([=](
 			const Data::Session::JoinChatWebViewDecision &decision) {
@@ -3070,9 +3363,20 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 	const auto bots = &peer->session().attachWebView();
 	const auto raw = result.get();
 	auto minimal = 0;
+	auto entries = std::vector<AttachStripEntry>();
+	const auto add = [&](
+			QString text,
+			Fn<void()> callback,
+			const style::icon *icon) {
+		entries.push_back({
+			.text = std::move(text),
+			.icon = icon,
+			.callback = std::move(callback),
+		});
+	};
 	if (Data::CanSend(peer, ChatRestriction::SendPhotos, false)) {
 		++minimal;
-		raw->addAction(tr::lng_attach_photo_or_video(tr::now), [=] {
+		add(tr::lng_attach_photo_or_video(tr::now), [=] {
 			attach(true);
 		}, &st::menuIconPhoto);
 	}
@@ -3083,14 +3387,14 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 		| ChatRestriction::SendFiles;
 	if (Data::CanSendAnyOf(peer, fileTypes, false)) {
 		++minimal;
-		raw->addAction(tr::lng_attach_document(tr::now), [=] {
+		add(tr::lng_attach_document(tr::now), [=] {
 			attach(false);
 		}, &st::menuIconFile);
 	}
-	const auto moneyIndex = int(raw->actions().size());
+	const auto moneyIndex = int(entries.size());
 	if (peer->canCreatePolls(false)) {
 		++minimal;
-		raw->addAction(tr::lng_polls_menu_item(tr::now), [=] {
+		add(tr::lng_polls_menu_item(tr::now), [=] {
 			const auto action = actionFactory();
 			const auto source = action.options.scheduled
 				? Api::SendType::Scheduled
@@ -3109,7 +3413,7 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 	}
 	if (peer->canCreateTodoLists(false)) {
 		++minimal;
-		raw->addAction(tr::lng_todo_menu_item(tr::now), [=] {
+		add(tr::lng_todo_menu_item(tr::now), [=] {
 			const auto action = actionFactory();
 			const auto source = action.options.scheduled
 				? Api::SendType::Scheduled
@@ -3125,7 +3429,7 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 	}
 	if (Iv::Editor::CanAuthorRichMessages(&controller->session())
 		&& Data::CanSendAnyOf(peer, ChatRestriction::SendOther, false)) {
-		raw->addAction(tr::lng_article_menu_item(tr::now), [=] {
+		add(tr::lng_article_menu_item(tr::now), [=] {
 			const auto action = actionFactory();
 			const auto details = sendMenuDetails();
 			Iv::Editor::ShowComposeBox(
@@ -3142,14 +3446,14 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 	const auto config = ResolveMapsConfig(session);
 	if (Data::CanSendAnyOf(peer, locationType, false)
 		&& Ui::LocationPicker::Available(config)) {
-		raw->addAction(tr::lng_maps_point(tr::now), [=] {
+		add(tr::lng_maps_point(tr::now), [=] {
 			Ui::PreventDelayedActivation();
 			ChooseAndSendLocation(controller, config, actionFactory());
 		}, &st::menuIconAddress);
 	}
 	if (Data::CanSend(peer, ChatRestriction::SendMusic, false)) {
 		++minimal;
-		raw->addAction(tr::lng_all_music(tr::now), [=] {
+		add(tr::lng_all_music(tr::now), [=] {
 			const auto box = controller->show(
 				Box(MusicAttachBox, controller, peer, actionFactory));
 			if (const auto strong = box.get()) {
@@ -3168,40 +3472,87 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 			|| bot.user->isOldWalletBot()) {
 			continue;
 		}
-		const auto callback = [=] {
-			bots->open({
-				.bot = bot.user,
-				.context = {
-					.controller = controller,
-					.action = actionFactory(),
-				},
-				.source = InlineBots::WebViewSourceAttachMenu(),
-			});
-		};
-		auto action = base::make_unique_q<BotAction>(
-			raw->menu(),
-			controller->uiShow(),
-			raw->menu()->st(),
-			bot,
-			callback);
-		action->forceShown(
-		) | rpl::on_next([=](bool shown) {
-			if (shown) {
-				raw->setAutoHiding(false);
-			} else {
-				raw->hideAnimated();
-				raw->setAutoHiding(true);
-			}
-		}, action->lifetime());
-		raw->addAction(std::move(action));
+		entries.push_back({
+			.text = bot.name,
+			.bot = bot.user,
+			.media = bot.media,
+			.callback = [=] {
+				bots->open({
+					.bot = bot.user,
+					.context = {
+						.controller = controller,
+						.action = actionFactory(),
+					},
+					.source = InlineBots::WebViewSourceAttachMenu(),
+				});
+			},
+		});
 	}
-	const auto actions = raw->actions().size();
+	// Svipe: the bots the user added themselves, after Telegram's.
+	for (const auto bot : Svipe::AttachMenu::Bots(session)) {
+		if (!addBots
+			|| bot == peer
+			|| ranges::contains(entries, bot.get(), &AttachStripEntry::bot)) {
+			continue;
+		}
+		entries.push_back({
+			.text = bot->name(),
+			.bot = bot,
+			.callback = [=] {
+				const auto info = bot->botInfo.get();
+				if (info && !info->hasMainApp && !info->botMenuButtonUrl.isEmpty()) {
+					// The server refuses a menu button URL in any other chat.
+					bots->open({
+						.bot = bot,
+						.context = {
+							.controller = controller,
+							.action = Api::SendAction(bot->owner().history(bot)),
+							.maySkipConfirmation = true,
+						},
+						.button = {
+							.text = info->botMenuButtonText,
+							.url = info->botMenuButtonUrl.toUtf8(),
+						},
+						.source = InlineBots::WebViewSourceBotMenu(),
+					});
+				} else {
+					bots->open({
+						.bot = bot,
+						.context = {
+							.controller = controller,
+							.action = actionFactory(),
+							.maySkipConfirmation = true,
+						},
+						.source = InlineBots::WebViewSourceBotProfile(),
+					});
+				}
+			},
+		});
+	}
+	const auto actions = int(entries.size());
 	const auto onclick = ChatHelpers::ShowPanelOnClick();
 	if (!actions) {
 		return nullptr;
 	} else if (actions <= minimal && !onclick) {
 		return nullptr;
 	}
+	auto owned = base::make_unique_q<AttachStrip>(
+		raw->menu(),
+		controller->uiShow(),
+		raw->menu()->st());
+	const auto strip = owned.get();
+	strip->forceShown(
+	) | rpl::on_next([=](bool shown) {
+		if (shown) {
+			raw->setAutoHiding(false);
+		} else {
+			raw->hideAnimated();
+			raw->setAutoHiding(true);
+		}
+	}, strip->lifetime());
+	strip->setEntries(std::move(entries));
+	raw->menu()->setForceWidth(strip->minWidth());
+	raw->addAction(std::move(owned));
 	if (const auto user = peer->asUser()) {
 		const auto wallet = &session->wallet();
 		const auto userId = peerToUser(user->id);
@@ -3218,44 +3569,36 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 			return Wallet::CanOfferSendMoney(user);
 		};
 		struct MoneyState {
-			QAction *action = nullptr;
+			bool shown = false;
 			bool queued = false;
 		};
 		const auto state = raw->lifetime().make_state<MoneyState>();
 		const auto menu = raw->menu();
 		const auto update = [=] {
 			const auto wanted = canOffer();
-			if (wanted == (state->action != nullptr)) {
+			if (wanted == state->shown) {
 				return;
 			}
+			state->shown = wanted;
 			raw->finishAnimating();
 			menu->finishAnimating();
 			menu->clearSelection();
+			auto now = strip->entries();
 			if (wanted) {
-				const auto action = Ui::Menu::CreateAction(
-					menu,
-					tr::lng_wallet_menu(tr::now),
-					crl::guard(controller, crl::guard(session, [=] {
+				now.insert(begin(now) + std::min(moneyIndex, int(now.size())), {
+					.text = tr::lng_wallet_menu(tr::now),
+					.icon = &st::walletMenuIcon,
+					.callback = crl::guard(controller, crl::guard(session, [=] {
 						if (canOffer()) {
 							Wallet::OpenSendMoney(controller, user);
 						}
-					})));
-				state->action = menu->insertAction(
-					moneyIndex,
-					base::make_unique_q<Ui::Menu::Action>(
-						menu,
-						menu->st(),
-						action,
-						&st::walletMenuIcon,
-						&st::walletMenuIcon));
-			} else {
-				state->action = nullptr;
-				menu->removeAction(moneyIndex);
-				const auto &remaining = menu->actions();
-				for (auto i = 0; i != int(remaining.size()); ++i) {
-					menu->itemForAction(remaining[i])->setIndex(i);
-				}
+					})),
+				});
+			} else if (moneyIndex < int(now.size())) {
+				now.erase(begin(now) + moneyIndex);
 			}
+			strip->setEntries(std::move(now));
+			menu->setForceWidth(strip->minWidth());
 		};
 		const auto schedule = [=] {
 			if (state->queued) {

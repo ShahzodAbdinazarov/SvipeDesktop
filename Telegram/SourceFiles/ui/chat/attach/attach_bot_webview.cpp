@@ -2432,6 +2432,12 @@ bool Panel::createWebview(const Webview::ThemeParams &params) {
 			notifyContactsChecked();
 		} else if (command == "web_app_open_contacts_settings") {
 			_delegate->botContactsOpenSettings();
+		} else if (command == "web_app_add_to_attach_menu") {
+			requestAttachMenuAdd();
+		} else if (command == "web_app_check_attach_menu") {
+			postEvent("attach_menu_checked", QJsonObject{
+				{ u"status"_q, _delegate->botAttachMenuStatus() },
+			});
 		} else if (command == "web_app_invoke_custom_method") {
 			invokeCustomMethod(arguments);
 		} else if (command == "web_app_setup_closing_behavior") {
@@ -3126,6 +3132,28 @@ void Panel::requestContacts() {
 	_delegate->botContactsRequest(crl::guard(this, [=](QJsonObject result) {
 		_inBlockingRequest = false;
 		postEvent("contacts_requested", result);
+	}));
+}
+
+void Panel::requestAttachMenuAdd() {
+	if (_inBlockingRequest) {
+		postEvent("attach_menu_failed", QJsonObject{
+			{ u"error"_q, u"UNSUPPORTED"_q },
+		});
+		return;
+	}
+	_inBlockingRequest = true;
+	_delegate->botAttachMenuAdd(crl::guard(this, [=](bool added) {
+		_inBlockingRequest = false;
+		if (added) {
+			postEvent("attach_menu_added");
+		} else {
+			postEvent("attach_menu_failed", QJsonObject{
+				{ u"error"_q, (_delegate->botAttachMenuStatus() == u"declined"_q)
+					? u"USER_DECLINED"_q
+					: u"UNSUPPORTED"_q },
+			});
+		}
 	}));
 }
 
