@@ -847,9 +847,90 @@ struct AttachStripEntry {
 	Fn<void()> callback;
 };
 
-class AttachStrip final
-	: public Ui::Menu::ItemBase
-	, public Ui::AbstractTooltipShower {
+// The name of the hovered cell, centered above it like a tooltip.
+class AttachStripLabel final : public Ui::RpWidget {
+public:
+	AttachStripLabel();
+
+	void showAbove(const QString &text, QRect globalCell);
+
+private:
+	void paintEvent(QPaintEvent *e) override;
+
+	const style::Tooltip &_st;
+	Ui::Text::String _text;
+
+};
+
+AttachStripLabel::AttachStripLabel()
+: RpWidget(nullptr)
+, _st(st::defaultTooltip) {
+	setWindowFlags(Qt::WindowFlags(Qt::FramelessWindowHint)
+		| Qt::BypassWindowManagerHint
+		| Qt::NoDropShadowWindowHint
+		| Qt::WindowTransparentForInput
+		| Qt::ToolTip);
+	setAttribute(Qt::WA_NoSystemBackground);
+	setAttribute(Qt::WA_TranslucentBackground);
+	setAttribute(Qt::WA_ShowWithoutActivating);
+	setAttribute(Qt::WA_TransparentForMouseEvents);
+}
+
+void AttachStripLabel::showAbove(const QString &text, QRect globalCell) {
+	_text = Ui::Text::String(_st.textStyle, text);
+	const auto size = QSize(
+		2 * st::lineWidth
+			+ _st.textPadding.left()
+			+ _text.maxWidth()
+			+ _st.textPadding.right(),
+		2 * st::lineWidth
+			+ _st.textPadding.top()
+			+ _st.textStyle.font->height
+			+ _st.textPadding.bottom());
+	auto position = QPoint(
+		globalCell.x() + (globalCell.width() - size.width()) / 2,
+		globalCell.y() - size.height() - st::lineWidth * 4);
+	if (const auto screen = QGuiApplication::screenAt(globalCell.center())) {
+		const auto available = screen->availableGeometry();
+		position.setX(std::clamp(
+			position.x(),
+			available.x(),
+			std::max(available.x(), available.x() + available.width() - size.width())));
+		if (position.y() < available.y()) {
+			position.setY(globalCell.y() + globalCell.height() + st::lineWidth * 4);
+		}
+	}
+	setGeometry(QRect(position, size));
+	update();
+	show();
+}
+
+void AttachStripLabel::paintEvent(QPaintEvent *e) {
+	auto p = Painter(this);
+	{
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(_st.textBorder);
+		p.setBrush(_st.textBg);
+		const auto radius = st::roundRadiusSmall;
+		p.drawRoundedRect(
+			QRectF(0.5, 0.5, width() - 1., height() - 1.),
+			radius,
+			radius);
+	}
+	p.setPen(_st.textFg);
+	_text.draw(p, {
+		.position = QPoint(
+			st::lineWidth + _st.textPadding.left(),
+			st::lineWidth + _st.textPadding.top()),
+		.availableWidth = width()
+			- 2 * st::lineWidth
+			- _st.textPadding.left()
+			- _st.textPadding.right(),
+		.elisionLines = 1,
+	});
+}
+
+class AttachStrip final : public Ui::Menu::ItemBase {
 public:
 	AttachStrip(
 		not_null<Ui::Menu::Menu*> parent,
@@ -867,15 +948,12 @@ public:
 
 	[[nodiscard]] rpl::producer<bool> forceShown() const;
 
-	QString tooltipText() const override;
-	QPoint tooltipPos() const override;
-	bool tooltipWindowActive() const override;
-
 private:
 	void paintEvent(QPaintEvent *e) override;
 	void mouseMoveEvent(QMouseEvent *e) override;
 	void enterEventHook(QEnterEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
+	void hideEvent(QHideEvent *e) override;
 	void contextMenuEvent(QContextMenuEvent *e) override;
 
 	QPoint prepareRippleStartPosition() const override;
@@ -885,6 +963,7 @@ private:
 	[[nodiscard]] QRect cellRect(int index) const;
 	[[nodiscard]] int cellAt(QPoint position) const;
 	void setOver(int index);
+	void showLabel();
 
 	const std::shared_ptr<Ui::Show> _show;
 	const not_null<QAction*> _dummyAction;
@@ -894,6 +973,8 @@ private:
 	Ui::RoundRect _overRect;
 	base::unique_qptr<Ui::PopupMenu> _menu;
 	rpl::event_stream<bool> _forceShown;
+	base::unique_qptr<AttachStripLabel> _label;
+	base::Timer _labelTimer;
 	int _over = -1;
 
 };
@@ -905,7 +986,8 @@ AttachStrip::AttachStrip(
 : ItemBase(parent, st)
 , _show(std::move(show))
 , _dummyAction(Ui::CreateChild<QAction>(parent))
-, _overRect(st::roundRadiusLarge, st::emojiPanHover) {
+, _overRect(st::roundRadiusLarge, st::emojiPanHover)
+, _labelTimer([=] { showLabel(); }) {
 	setAcceptBoth(false);
 	setMouseTracking(true);
 	setActionTriggered([=] {
@@ -973,11 +1055,30 @@ void AttachStrip::setOver(int index) {
 	_over = index;
 	setCursor((_over >= 0) ? style::cur_pointer : style::cur_default);
 	update();
-	if (_over >= 0) {
-		Ui::Tooltip::Show(300, this);
+	if (_over < 0) {
+		_labelTimer.cancel();
+		if (_label) {
+			_label->hide();
+		}
+	} else if (_label && _label->isVisible()) {
+		// Already showing a name, so move straight to the next one.
+		showLabel();
 	} else {
-		Ui::Tooltip::Hide();
+		_labelTimer.callOnce(300);
 	}
+}
+
+void AttachStrip::showLabel() {
+	if (_over < 0 || _over >= int(_entries.size()) || !isVisible()) {
+		return;
+	}
+	if (!_label) {
+		_label = base::make_unique_q<AttachStripLabel>();
+	}
+	const auto cell = cellRect(_over);
+	_label->showAbove(
+		_entries[_over].text,
+		QRect(mapToGlobal(cell.topLeft()), cell.size()));
 }
 
 void AttachStrip::paintEvent(QPaintEvent *e) {
@@ -1011,10 +1112,6 @@ void AttachStrip::paintEvent(QPaintEvent *e) {
 void AttachStrip::mouseMoveEvent(QMouseEvent *e) {
 	ItemBase::mouseMoveEvent(e);
 	setOver(cellAt(e->pos()));
-	if (_over >= 0) {
-		// Any move hides the tooltip, so keep it coming back.
-		Ui::Tooltip::Show(300, this);
-	}
 }
 
 void AttachStrip::enterEventHook(QEnterEvent *e) {
@@ -1027,7 +1124,16 @@ void AttachStrip::leaveEventHook(QEvent *e) {
 	setOver(-1);
 }
 
+void AttachStrip::hideEvent(QHideEvent *e) {
+	ItemBase::hideEvent(e);
+	setOver(-1);
+}
+
 void AttachStrip::contextMenuEvent(QContextMenuEvent *e) {
+	_labelTimer.cancel();
+	if (_label) {
+		_label->hide();
+	}
 	const auto index = cellAt(e->pos());
 	if (index < 0 || !_entries[index].bot) {
 		return;
@@ -1050,21 +1156,6 @@ void AttachStrip::contextMenuEvent(QContextMenuEvent *e) {
 	_forceShown.fire(true);
 	_menu->popup(e->globalPos());
 	e->accept();
-}
-
-QString AttachStrip::tooltipText() const {
-	return (_over >= 0 && _over < int(_entries.size()))
-		? _entries[_over].text
-		: QString();
-}
-
-QPoint AttachStrip::tooltipPos() const {
-	return QCursor::pos();
-}
-
-bool AttachStrip::tooltipWindowActive() const {
-	// The dropdown is a separate window that never takes focus.
-	return Ui::AppInFocus() && isVisible();
 }
 
 bool AttachStrip::isEnabled() const {
