@@ -100,6 +100,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h" // emojiSuggestionSize.
 #include "svipe/svipe_attach_menu.h"
+
+#include <QtGui/QGuiApplication>
+#include <QtGui/QScreen>
 #include "svipe/svipe_bot_contacts.h"
 #include "svipe/svipe_strings.h"
 #include "styles/style_info.h" // infoVerifiedStar.
