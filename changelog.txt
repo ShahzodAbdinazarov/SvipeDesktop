@@ -1,3 +1,7 @@
+7.3.6 (16.10.26)
+
+- Svipe Desktop 1.0.18: the Profile Images tab appears as soon as the profile opens. Photos you kept from someone who now has no profile photo are shown again, including the ones kept on your other devices.
+
 7.3.5 (16.10.26)
 
 - Svipe Desktop 1.0.17: the attachment menu is now one row of icons, and hovering an icon shows its name. Bots can ask to be added to this menu. A bot is added only if you agree, and you can remove it by right-clicking its icon.
