@@ -76,7 +76,10 @@ struct Entry {
 	) | rpl::filter(
 		rpl::mappers::_1 == peerToUser(user->id)
 	) | rpl::map([=] {
-		return int(CollectEntries(user).size());
+		// Someone with a photo has the tab from the start, before the photo list arrives.
+		const auto hasPhoto = !user->userpicPhotoUnknown()
+			&& user->userpicPhotoId();
+		return std::max(int(CollectEntries(user).size()), hasPhoto ? 1 : 0);
 	});
 }
 

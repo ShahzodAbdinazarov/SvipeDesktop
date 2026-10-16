@@ -205,7 +205,8 @@ void Remember(
 	}
 	// The list arrives in pages; only a list holding every photo the server counts proves that a
 	// captured photo missing from it was deleted (SvipeAvatarSync.liveSetComplete).
-	live.complete = (fullCount > 0) && (int(live.ids.size()) >= fullCount);
+	// A person with no photo at all gets fullCount 0, and that list is complete too.
+	live.complete = (int(live.ids.size()) >= fullCount);
 	state.updates.fire_copy(userId);
 }
 
@@ -243,7 +244,13 @@ LiveSet Live(not_null<UserData*> user) {
 }
 
 std::vector<Photo> Deleted(not_null<UserData*> user) {
-	const auto live = Live(user);
+	auto live = Live(user);
+	if (!live.complete
+		&& !user->userpicPhotoUnknown()
+		&& !user->userpicPhotoId()) {
+		// No photo now, so every kept one is gone; no need to wait for the list.
+		live = LiveSet{ .complete = true };
+	}
 	if (!live.complete) {
 		return {};
 	}
