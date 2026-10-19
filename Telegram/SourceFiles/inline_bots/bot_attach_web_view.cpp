@@ -954,6 +954,7 @@ public:
 private:
 	void paintEvent(QPaintEvent *e) override;
 	void mouseMoveEvent(QMouseEvent *e) override;
+	void mouseReleaseEvent(QMouseEvent *e) override;
 	void enterEventHook(QEnterEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
 	void hideEvent(QHideEvent *e) override;
@@ -979,6 +980,7 @@ private:
 	base::unique_qptr<AttachStripLabel> _label;
 	base::Timer _labelTimer;
 	int _over = -1;
+	int _released = -1;
 
 };
 
@@ -994,8 +996,13 @@ AttachStrip::AttachStrip(
 	setAcceptBoth(false);
 	setMouseTracking(true);
 	setActionTriggered([=] {
-		if (_over >= 0 && _over < int(_entries.size())) {
-			if (const auto callback = _entries[_over].callback) {
+		// The menu hides before it triggers, and hiding clears _over: the
+		// cell released on is kept for this moment.
+		const auto index = (_released >= 0)
+			? std::exchange(_released, -1)
+			: _over;
+		if (index >= 0 && index < int(_entries.size())) {
+			if (const auto callback = _entries[index].callback) {
 				callback();
 			}
 		}
@@ -1115,6 +1122,11 @@ void AttachStrip::paintEvent(QPaintEvent *e) {
 void AttachStrip::mouseMoveEvent(QMouseEvent *e) {
 	ItemBase::mouseMoveEvent(e);
 	setOver(cellAt(e->pos()));
+}
+
+void AttachStrip::mouseReleaseEvent(QMouseEvent *e) {
+	_released = cellAt(e->pos());
+	ItemBase::mouseReleaseEvent(e);
 }
 
 void AttachStrip::enterEventHook(QEnterEvent *e) {

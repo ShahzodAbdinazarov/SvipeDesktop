@@ -5,6 +5,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 
 #include "apiwrap.h"
 #include "base/call_delayed.h"
+#include "data/data_changes.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
 #include "data/data_session.h"
@@ -602,6 +603,23 @@ void Open(
 		not_null<UserData*> bot,
 		std::optional<::Api::SendAction> chat,
 		const QString &startCommand) {
+	// A bot added on another device may not have been seen here yet: without its full info the
+	// menu button URL is unknown, and opening it as a Main Mini App the bot doesn't have fails
+	// silently. Load it first, then open.
+	if (!bot->isFullLoaded() || !bot->botInfo) {
+		const auto lifetime = std::make_shared<rpl::lifetime>();
+		bot->session().changes().peerUpdates(
+			bot,
+			Data::PeerUpdate::Flag::FullInfo
+		) | rpl::take(1) | rpl::on_next([=] {
+			if (bot->isFullLoaded() && bot->botInfo) {
+				Open(show, controller, bot, chat, startCommand);
+			}
+			lifetime->destroy();
+		}, *lifetime);
+		bot->session().api().requestFullPeer(bot);
+		return;
+	}
 	const auto info = bot->botInfo.get();
 	const auto own = ::Api::SendAction(bot->owner().history(bot));
 	if (info && !info->hasMainApp && !info->botMenuButtonUrl.isEmpty()) {
