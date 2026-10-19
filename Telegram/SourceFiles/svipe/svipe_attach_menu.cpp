@@ -502,15 +502,6 @@ std::vector<not_null<UserData*>> Bots(not_null<Main::Session*> session) {
 	return result;
 }
 
-std::vector<not_null<UserData*>> SideMenuBots(
-		not_null<Main::Session*> session) {
-	auto result = Bots(session);
-	result.erase(ranges::remove_if(result, [](not_null<UserData*> bot) {
-		return !Config(bot).value(u"side_menu"_q).toBool();
-	}), end(result));
-	return result;
-}
-
 bool Contains(not_null<UserData*> bot) {
 	return ranges::contains(Ids(&bot->session(), u"bots"_q), Id(bot));
 }

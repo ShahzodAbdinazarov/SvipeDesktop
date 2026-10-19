@@ -18,8 +18,9 @@ a menu button opens it as from its own chat, because the server refuses a menu b
 else (BOT_WEBVIEW_DISABLED).
 
 What Telegram keeps on its server for the bots it picked comes from Svipe's (app/api/attach.py):
-  the bot's own settings (GET /v1/attach/config): the chats the button shows in, the side menu, and
-  whether the add dialog asks to let the bot write to the user;
+  the bot's own settings (GET /v1/attach/config): the chats the button shows in, and whether the add
+  dialog asks to let the bot write to the user. Telegram's side menu is not offered: a bot gets the
+  attachment menu, not a place in the app's own menu;
   the same list on every device of the account (/v1/attach/bots);
   who the chat is with, signed by Svipe and passed to the mini app as tgWebAppSvipeData (SignContext);
   answerWebAppQuery: the mini app hands over a message its bot prepared, and the app sends it to the
@@ -45,9 +46,6 @@ namespace Svipe::AttachMenu {
 // The bots to show, in the order they were added. The bots' settings and the other devices'
 // answers are fetched once per run, on the first call.
 [[nodiscard]] std::vector<not_null<UserData*>> Bots(
-	not_null<Main::Session*> session);
-// Those of them that asked for the side menu too.
-[[nodiscard]] std::vector<not_null<UserData*>> SideMenuBots(
 	not_null<Main::Session*> session);
 [[nodiscard]] bool Contains(not_null<UserData*> bot);
 
