@@ -1,6 +1,6 @@
 7.3.8 (19.10.26)
 
-- Svipe Desktop 1.0.20: bots in the attachment menu can do what Telegram's own attach bots do. A bot can appear only in the chats it chooses, ask to send you messages when you add it, know who the chat is with, and send a message to the chat. Your attachment menu is the same on all your devices. Fixed: clicking a bot's icon in the attachment menu did nothing.
+- Svipe Desktop 1.0.20: bots in the attachment menu can do what Telegram's own attach bots do. A bot can appear only in the chats it chooses, show its own icon, ask to send you messages when you add it, know who the chat is with, and send a message to the chat. Your attachment menu is the same on all your devices. Fixed: clicking a bot's icon in the attachment menu did nothing.
 
 7.3.7 (17.10.26)
 
