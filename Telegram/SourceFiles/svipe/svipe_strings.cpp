@@ -354,6 +354,24 @@ Translations Lookup(Str key) {
 		"Contacts",
 		"Kontaktlar",
 		"Контакты" };
+	// Telegram's own texts for these (Android: BotCantOpenAttachMenu*), with the
+	// translations applied on translations.telegram.org.
+	case Str::BotCantOpenAttachMenuUser: return {
+		"This bot can't be opened in chats with users.",
+		"Bu botni foydalanuvchilar bilan chatlarda ochish imkonsiz.",
+		"Этого бота нельзя использовать в чатах с пользователями." };
+	case Str::BotCantOpenAttachMenuBot: return {
+		"This bot can't be opened in chats with bots.",
+		"Bu botni botlar bilan chatlarda ochish imkonsiz.",
+		"Этого бота нельзя использовать в чатах с ботами." };
+	case Str::BotCantOpenAttachMenuGroup: return {
+		"This bot can't be opened in groups.",
+		"Bu botni guruhlarda ochish imkonsiz.",
+		"Этого бота нельзя использовать в группах." };
+	case Str::BotCantOpenAttachMenuChannel: return {
+		"This bot can't be opened in channels.",
+		"Bu botni kanallarda ochish imkonsiz.",
+		"Этого бота нельзя использовать в каналах." };
 	case Str::BotTab: return {
 		"Bot tab",
 		"Bot tabi",

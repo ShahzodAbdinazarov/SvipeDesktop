@@ -1819,10 +1819,19 @@ void WebViewInstance::requestWithMenuAdd() {
 							bot,
 							types)) {
 						Svipe::AttachMenu::Open(show, weak, bot, action, token);
-					} else if (types & PeerType::SameBot) {
-						open(bot->owner().history(bot));
 					} else {
-						ShowChooseBox(show, &bot->session(), types, open);
+						// As in Telegram for its own attach bots: say which
+						// kind of chat the bot can't be opened in.
+						const auto peer = action.history->peer;
+						const auto user = peer->asUser();
+						using Str = Svipe::Str;
+						show->showToast(Svipe::Tr(user
+							? (user->isBot()
+								? Str::BotCantOpenAttachMenuBot
+								: Str::BotCantOpenAttachMenuUser)
+							: peer->isBroadcast()
+							? Str::BotCantOpenAttachMenuChannel
+							: Str::BotCantOpenAttachMenuGroup));
 					}
 				}));
 		} else if (value == Result::Unsupported) {
