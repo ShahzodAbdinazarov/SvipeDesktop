@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "main/main_session.h"
+#include "svipe/svipe_attach_menu.h"
 #include "ui/controls/userpic_button.h"
 #include "ui/layers/generic_box.h"
 #include "ui/new_badges.h"
@@ -359,6 +360,60 @@ void SetupMenuBots(
 			if (bots->showMainMenuNewBadge(bot)) {
 				Ui::NewBadge::AddToRight(button);
 			}
+		}
+		// Svipe: the bots of Svipe's own attachment menu that asked for the
+		// side menu too (svipe/svipe_attach_menu.h), with their userpics.
+		const auto session = &controller->session();
+		for (const auto user : Svipe::AttachMenu::SideMenuBots(session)) {
+			const auto button = wrap->add(object_ptr<Ui::SettingsButton>(
+				wrap,
+				rpl::single(user->name()),
+				st::mainMenuButton));
+			const auto menu = button->lifetime().make_state<
+				base::unique_qptr<Ui::PopupMenu>
+			>();
+			const auto icon = Ui::CreateChild<Ui::RpWidget>(button);
+			icon->setAttribute(Qt::WA_TransparentForMouseEvents);
+			icon->resize(st::menuIconAdmin.size());
+			const auto view = icon->lifetime().make_state<
+				Ui::PeerUserpicView
+			>();
+			icon->paintRequest() | rpl::on_next([=] {
+				auto p = QPainter(icon);
+				user->paintUserpic(p, *view, 0, 0, icon->width());
+			}, icon->lifetime());
+			session->downloaderTaskFinished(
+			) | rpl::on_next([=] {
+				icon->update();
+			}, icon->lifetime());
+			button->heightValue(
+			) | rpl::on_next([=](int height) {
+				icon->move(
+					st::mainMenuButton.iconLeft,
+					(height - icon->height()) / 2);
+			}, button->lifetime());
+			const auto weak = base::make_weak(container);
+			const auto show = controller->uiShow();
+			button->setAcceptBoth(true);
+			button->clicks(
+			) | rpl::on_next([=](Qt::MouseButton which) {
+				if (which == Qt::LeftButton) {
+					Svipe::AttachMenu::Open(show, controller, user, {});
+					if (weak) {
+						controller->window().hideSettingsAndLayer();
+					}
+				} else {
+					(*menu) = nullptr;
+					(*menu) = base::make_unique_q<Ui::PopupMenu>(
+						button,
+						st::popupMenuWithIcons);
+					(*menu)->addAction(
+						tr::lng_bot_remove_from_menu(tr::now),
+						[=] { Svipe::AttachMenu::Remove(show, user); },
+						&st::menuIconDelete);
+					(*menu)->popup(QCursor::pos());
+				}
+			}, button->lifetime());
 		}
 		wrap->resizeToWidth(width);
 	}, wrap->lifetime());

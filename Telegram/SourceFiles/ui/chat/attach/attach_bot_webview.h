@@ -146,6 +146,13 @@ public:
 	// Svipe: any bot in the attachment menu (svipe/svipe_attach_menu.h).
 	[[nodiscard]] virtual QString botAttachMenuStatus() = 0;
 	virtual void botAttachMenuAdd(Fn<void(bool added)> callback) = 0;
+	// Svipe: web_app_send_to_chat, a message the bot prepared, to the chat the
+	// attachment menu opened the mini app in. accepted() once it is taken,
+	// then done(error), with an empty error when sent.
+	virtual void botSendToChat(
+		QString id,
+		Fn<void()> accepted,
+		Fn<void(QString error)> done) = 0;
 	virtual void botClose() = 0;
 };
 
@@ -299,6 +306,7 @@ private:
 	void replyRequestPhone(bool shared);
 	void requestContacts();
 	void requestAttachMenuAdd();
+	void sendToChat(const QJsonObject &args);
 	void requestPermission(Webview::PermissionType type, Fn<void(bool)> done);
 	void invokeCustomMethod(const QJsonObject &args);
 	void replyCustomMethod(QJsonValue requestId, QJsonObject response);

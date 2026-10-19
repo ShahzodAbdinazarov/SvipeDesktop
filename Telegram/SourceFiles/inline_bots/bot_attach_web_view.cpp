@@ -1761,14 +1761,44 @@ void WebViewInstance::requestWithMenuAdd() {
 		} else if (value == Result::Unsupported
 			&& Svipe::AttachMenu::CanAdd(_bot)) {
 			// Svipe: a bot Telegram didn't pick goes to Svipe's own list
-			// (svipe/svipe_attach_menu.h), asked with Telegram's dialog.
-			Svipe::AttachMenu::Request(_parentShow, _bot, false, crl::guard(
+			// (svipe/svipe_attach_menu.h), asked with Telegram's dialog, then
+			// opens in the chat of the link, or in one chosen from the kinds
+			// of chat both the link and the bot allow.
+			const auto bot = _bot;
+			const auto show = _parentShow;
+			const auto weak = _context.controller;
+			const auto action = *_context.action;
+			const auto token = _button.startCommand;
+			const auto link = std::get_if<WebViewSourceLinkAttachMenu>(
+				&_source);
+			const auto choose = link ? link->choose : PeerTypes();
+			Svipe::AttachMenu::Request(show, bot, false, crl::guard(
 				this,
 				[=](bool, bool added) {
-					if (added && _bot->botInfo && _bot->botInfo->hasMainApp) {
-						requestMain();
+					close();
+					if (!added) {
+						return;
+					}
+					const auto types = Svipe::AttachMenu::Types(bot);
+					const auto open = [=](not_null<Data::Thread*> thread) {
+						Svipe::AttachMenu::Open(
+							show,
+							WindowForThread(weak, thread),
+							bot,
+							Api::SendAction(thread),
+							token);
+					};
+					if (const auto chosen = (choose & types)) {
+						ShowChooseBox(show, &bot->session(), chosen, open);
+					} else if (PeerMatchesTypes(
+							action.history->peer,
+							bot,
+							types)) {
+						Svipe::AttachMenu::Open(show, weak, bot, action, token);
+					} else if (types & PeerType::SameBot) {
+						open(bot->owner().history(bot));
 					} else {
-						close();
+						ShowChooseBox(show, &bot->session(), types, open);
 					}
 				}));
 		} else if (value == Result::Unsupported) {
@@ -1836,6 +1866,22 @@ void WebViewInstance::show(ShowArgs &&args) {
 		};
 	}
 
+	// Svipe: who the chat is with, signed by Svipe for its own attach bots
+	// (Telegram signs it into initData only for the bots it picked).
+	if (_context.svipeAttach && !_svipeSigned) {
+		_svipeSigned = true;
+		Svipe::AttachMenu::SignContext(
+			_bot,
+			_context.svipeAttach->history->peer,
+			args.result.url,
+			crl::guard(this, [=](QString url) {
+				auto copy = args;
+				copy.result.url = url;
+				show(std::move(copy));
+			}));
+		return;
+	}
+
 	const auto &bots = _session->attachWebView().attachBots();
 
 	using Button = Ui::BotWebView::MenuButton;
@@ -1856,6 +1902,14 @@ void WebViewInstance::show(ShowArgs &&args) {
 			: attached->inMainMenu
 			? Button::RemoveFromMainMenu
 			: Button::RemoveFromMenu);
+	// Svipe: the bots of Svipe's own list leave the menu the same way.
+	if (!hasRemoveFromMenu
+		&& (_context.svipeAttach || _context.svipeSideMenu)
+		&& Svipe::AttachMenu::Contains(_bot)) {
+		buttons |= _context.svipeSideMenu
+			? Button::RemoveFromMainMenu
+			: Button::RemoveFromMenu;
+	}
 	if (Info::Profile::CanReportBot(_bot)) {
 		buttons |= Button::Report;
 	}
@@ -2834,6 +2888,44 @@ void WebViewInstance::botAttachMenuAdd(Fn<void(bool added)> callback) {
 	});
 }
 
+// Svipe: answerWebAppQuery for any bot opened from the attachment menu in a
+// chat. The bot prepares the message (savePreparedInlineMessage) and the mini
+// app hands it over; it goes to that chat, once per launch, and the mini app
+// closes, as after answerWebAppQuery.
+void WebViewInstance::botSendToChat(
+		QString id,
+		Fn<void()> accepted,
+		Fn<void(QString error)> done) {
+	const auto action = _context.svipeAttach
+		? _context.svipeAttach
+		: (v::is<WebViewSourceAttachMenu>(_source)
+			|| v::is<WebViewSourceLinkAttachMenu>(_source))
+		? _context.action
+		: std::nullopt;
+	if (!action) {
+		done(u"UNSUPPORTED"_q);
+		return;
+	} else if (_svipeSentToChat) {
+		done(u"ALREADY_SENT"_q);
+		return;
+	} else if (id.isEmpty()) {
+		done(u"MESSAGE_EXPIRED"_q);
+		return;
+	}
+	_svipeSentToChat = true;
+	accepted();
+	Svipe::AttachMenu::SendPrepared(_bot, id, *action, crl::guard(this, [=](
+			QString error) {
+		if (!error.isEmpty()) {
+			_svipeSentToChat = false;
+			done(error);
+			return;
+		}
+		done(QString());
+		botClose();
+	}));
+}
+
 void WebViewInstance::botContactsOpenSettings() {
 	if (const auto strong = _context.controller.get()) {
 		strong->showPeerInfo(_bot);
@@ -3207,6 +3299,11 @@ void AttachWebView::requestAddToMenu(
 void AttachWebView::removeFromMenu(
 		std::shared_ptr<Ui::Show> show,
 		not_null<UserData*> bot) {
+	// Svipe: a bot of Svipe's own list leaves it (svipe/svipe_attach_menu.h).
+	if (Svipe::AttachMenu::Contains(bot)) {
+		Svipe::AttachMenu::Remove(show, bot);
+		return;
+	}
 	toggleInMenu(bot, ToggledState::Removed, [=](bool success) {
 		if (success) {
 			show->showToast(tr::lng_bot_remove_from_menu_done(tr::now));
@@ -3602,7 +3699,7 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 	// Svipe: the bots the user added themselves, after Telegram's.
 	for (const auto bot : Svipe::AttachMenu::Bots(session)) {
 		if (!addBots
-			|| bot == peer
+			|| !PeerMatchesTypes(peer, bot, Svipe::AttachMenu::Types(bot))
 			|| ranges::contains(entries, bot.get(), &AttachStripEntry::bot)) {
 			continue;
 		}
@@ -3610,33 +3707,11 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 			.text = bot->name(),
 			.bot = bot,
 			.callback = [=] {
-				const auto info = bot->botInfo.get();
-				if (info && !info->hasMainApp && !info->botMenuButtonUrl.isEmpty()) {
-					// The server refuses a menu button URL in any other chat.
-					bots->open({
-						.bot = bot,
-						.context = {
-							.controller = controller,
-							.action = Api::SendAction(bot->owner().history(bot)),
-							.maySkipConfirmation = true,
-						},
-						.button = {
-							.text = info->botMenuButtonText,
-							.url = info->botMenuButtonUrl.toUtf8(),
-						},
-						.source = InlineBots::WebViewSourceBotMenu(),
-					});
-				} else {
-					bots->open({
-						.bot = bot,
-						.context = {
-							.controller = controller,
-							.action = actionFactory(),
-							.maySkipConfirmation = true,
-						},
-						.source = InlineBots::WebViewSourceBotProfile(),
-					});
-				}
+				Svipe::AttachMenu::Open(
+					controller->uiShow(),
+					controller,
+					bot,
+					actionFactory());
 			},
 		});
 	}

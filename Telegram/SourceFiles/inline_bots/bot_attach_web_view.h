@@ -228,6 +228,11 @@ struct WebViewContext {
 	std::optional<Api::SendAction> action;
 	bool fullscreen = false;
 	bool maySkipConfirmation = false;
+
+	// Svipe: opened from Svipe's own attachment menu (svipe/svipe_attach_menu.h),
+	// in this chat, or from the side menu.
+	std::optional<Api::SendAction> svipeAttach;
+	bool svipeSideMenu = false;
 };
 
 struct WebViewDescriptor {
@@ -339,6 +344,10 @@ private:
 	void botContactsOpenSettings() override;
 	QString botAttachMenuStatus() override;
 	void botAttachMenuAdd(Fn<void(bool added)> callback) override;
+	void botSendToChat(
+		QString id,
+		Fn<void()> accepted,
+		Fn<void(QString error)> done) override;
 	void botClose() override;
 
 	const std::shared_ptr<Ui::Show> _parentShow;
@@ -361,6 +370,8 @@ private:
 	QString _appStartParam;
 	bool _dataSent = false;
 	bool _confirmingDownload = false;
+	bool _svipeSigned = false;
+	bool _svipeSentToChat = false;
 
 	mtpRequestId _requestId = 0;
 	mtpRequestId _prolongId = 0;

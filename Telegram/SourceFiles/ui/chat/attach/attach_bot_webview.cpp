@@ -2438,6 +2438,8 @@ bool Panel::createWebview(const Webview::ThemeParams &params) {
 			postEvent("attach_menu_checked", QJsonObject{
 				{ u"status"_q, _delegate->botAttachMenuStatus() },
 			});
+		} else if (command == "web_app_send_to_chat") {
+			sendToChat(arguments);
 		} else if (command == "web_app_invoke_custom_method") {
 			invokeCustomMethod(arguments);
 		} else if (command == "web_app_setup_closing_behavior") {
@@ -3155,6 +3157,23 @@ void Panel::requestAttachMenuAdd() {
 			});
 		}
 	}));
+}
+
+void Panel::sendToChat(const QJsonObject &args) {
+	_delegate->botSendToChat(
+		args[u"id"_q].toString(),
+		crl::guard(this, [=] {
+			postEvent("send_to_chat_accepted");
+		}),
+		crl::guard(this, [=](QString error) {
+			if (error.isEmpty()) {
+				postEvent("sent_to_chat");
+			} else {
+				postEvent("send_to_chat_failed", QJsonObject{
+					{ u"error"_q, error },
+				});
+			}
+		}));
 }
 
 void Panel::notifyContactsChecked() {
