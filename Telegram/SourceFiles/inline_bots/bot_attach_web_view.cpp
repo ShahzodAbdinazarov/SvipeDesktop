@@ -1108,6 +1108,18 @@ void AttachStrip::paintEvent(QPaintEvent *e) {
 				cell.y() + (cell.height() - entry.icon->height()) / 2,
 				width());
 		} else if (entry.bot && !entry.media) {
+			// Svipe: a bot of Svipe's own list draws the icon it gave Svipe, like Telegram's.
+			const auto size = st::menuIconPhoto.width();
+			const auto icon = Svipe::AttachMenu::Contains(entry.bot)
+				? Svipe::AttachMenu::Icon(entry.bot, size, st::menuIconColor->c)
+				: QImage();
+			if (!icon.isNull()) {
+				p.drawImage(
+					cell.x() + (cell.width() - size) / 2,
+					cell.y() + (cell.height() - size) / 2,
+					icon);
+				continue;
+			}
 			auto &view = _userpics[entry.bot];
 			entry.bot->paintUserpic(
 				p,

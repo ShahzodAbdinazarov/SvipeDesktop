@@ -72,6 +72,10 @@ void Remove(std::shared_ptr<Ui::Show> show, not_null<UserData*> bot);
 // Fires when the list changes, so open menus are rebuilt.
 [[nodiscard]] rpl::producer<> Changes();
 
+// The icon the bot gave Svipe (GET /v1/attach/icon/{bot_id}), painted in the given colour; a null
+// image when it has none or while it is fetched (Changes() fires when it arrives).
+[[nodiscard]] QImage Icon(not_null<UserData*> bot, int size, QColor color);
+
 // Opens the bot's mini app from the menu in this chat or, with no chat, from the side menu: a bot
 // with a Main Mini App opens it there, one with only a menu button as from its own chat.
 void Open(

@@ -16,6 +16,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "main/main_session.h"
 #include "svipe/svipe_api.h"
 #include "svipe/svipe_auth.h"
+#include "settings.h"
 #include "svipe/svipe_storage.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/layers/generic_box.h"
@@ -25,8 +26,12 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "styles/style_boxes.h"
 #include "styles/style_layers.h"
 
+#include <QtCore/QDir>
+#include <QtCore/QFile>
 #include <QtCore/QJsonArray>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QUrl>
+#include <QtSvg/QSvgRenderer>
 
 namespace Svipe::AttachMenu {
 namespace {
@@ -45,6 +50,9 @@ struct Global {
 	// The settings of every bot asked about in this run, the added ones' are also stored.
 	base::flat_map<uint64, QJsonObject> configs;
 	base::flat_set<uint64> resolving;
+	// The bots' icons, rendered (by "<id>_<version>_<size>_<color>"), and the ones being fetched.
+	base::flat_map<QString, QImage> icons;
+	base::flat_set<QString> iconsLoading;
 	rpl::event_stream<> changes;
 };
 
@@ -586,6 +594,63 @@ void Remove(std::shared_ptr<Ui::Show> show, not_null<UserData*> bot) {
 
 rpl::producer<> Changes() {
 	return G().changes.events();
+}
+
+QImage Icon(not_null<UserData*> bot, int size, QColor color) {
+	const auto version = Config(bot).value(u"icon"_q).toString();
+	static const auto kVersion = QRegularExpression(u"^[0-9a-f]{1,32}$"_q);
+	if (!kVersion.match(version).hasMatch()) {
+		return QImage();
+	}
+	const auto file = u"%1_%2"_q.arg(Id(bot)).arg(version);
+	const auto key = u"%1_%2_%3"_q.arg(file).arg(size).arg(color.rgba());
+	if (const auto i = G().icons.find(key); i != end(G().icons)) {
+		return i->second;
+	}
+	const auto folder = cWorkingDir() + u"tdata/svipe_attach_icons/"_q;
+	const auto path = folder + file + u".svg"_q;
+	auto svg = QFile(path);
+	if (svg.open(QIODevice::ReadOnly)) {
+		auto renderer = QSvgRenderer(svg.readAll());
+		if (renderer.isValid()) {
+			// Painted in the colour of the menu's own icons, as Telegram tints its attach bots'.
+			const auto ratio = style::DevicePixelRatio();
+			auto image = QImage(
+				QSize(size, size) * ratio,
+				QImage::Format_ARGB32_Premultiplied);
+			image.fill(Qt::transparent);
+			image.setDevicePixelRatio(ratio);
+			auto p = QPainter(&image);
+			p.setRenderHint(QPainter::Antialiasing);
+			renderer.setAspectRatioMode(Qt::KeepAspectRatio);
+			renderer.render(&p, QRectF(0, 0, size, size));
+			p.setCompositionMode(QPainter::CompositionMode_SourceIn);
+			p.fillRect(QRect(0, 0, size, size), color);
+			p.end();
+			G().icons.emplace(key, image);
+			return image;
+		}
+		svg.close();
+		svg.remove();
+	}
+	if (G().iconsLoading.emplace(file).second) {
+		Api::GetBytes(u"/v1/attach/icon/%1"_q.arg(Id(bot)), [=](
+				QByteArray bytes,
+				int code) {
+			G().iconsLoading.remove(file);
+			if (code != 200 || bytes.isEmpty()) {
+				return;
+			}
+			QDir().mkpath(folder);
+			auto out = QFile(path);
+			if (out.open(QIODevice::WriteOnly)) {
+				out.write(bytes);
+				out.close();
+				G().changes.fire({});
+			}
+		});
+	}
+	return QImage();
 }
 
 void Open(
