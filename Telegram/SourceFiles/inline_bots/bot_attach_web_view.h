@@ -233,6 +233,9 @@ struct WebViewContext {
 	// in this chat, or from the side menu.
 	std::optional<Api::SendAction> svipeAttach;
 	bool svipeSideMenu = false;
+	// The startattach value, signed by Svipe: Telegram leaves it out of the
+	// initData of a bot that opens as from its own chat.
+	QString svipeStartParam;
 };
 
 struct WebViewDescriptor {

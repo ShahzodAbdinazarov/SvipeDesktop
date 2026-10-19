@@ -1898,6 +1898,7 @@ void WebViewInstance::show(ShowArgs &&args) {
 			_bot,
 			_context.svipeAttach->history->peer,
 			args.result.url,
+			_context.svipeStartParam,
 			crl::guard(this, [=](QString url) {
 				auto copy = args;
 				copy.result.url = url;

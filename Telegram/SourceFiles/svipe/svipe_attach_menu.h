@@ -92,6 +92,7 @@ void SignContext(
 	not_null<UserData*> bot,
 	not_null<PeerData*> peer,
 	const QString &url,
+	const QString &startParam,
 	Fn<void(QString url)> done);
 
 // Sends a message the bot prepared (Bot API savePreparedInlineMessage) with `action`, as

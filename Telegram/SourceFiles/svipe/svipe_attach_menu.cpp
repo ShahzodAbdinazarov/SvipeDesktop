@@ -419,8 +419,15 @@ void ShowBox(
 [[nodiscard]] QJsonObject ContextBody(
 		not_null<UserData*> bot,
 		not_null<PeerData*> peer,
-		const QString &url) {
+		const QString &url,
+		const QString &startParam) {
 	auto body = QJsonObject{ { u"bot_id"_q, qint64(Id(bot)) } };
+	// A bot with only a menu button opens as from its own chat, and Telegram
+	// leaves the startattach value out of its initData: Svipe signs it.
+	static const auto kStartParam = QRegularExpression(u"^[A-Za-z0-9_-]{1,64}$"_q);
+	if (kStartParam.match(startParam).hasMatch()) {
+		body.insert(u"start_param"_q, startParam);
+	}
 	const auto initData = Auth::ExtractInitData(url);
 	for (const auto &pair : initData.split('&')) {
 		const auto eq = pair.indexOf('=');
@@ -689,6 +696,7 @@ void Open(
 				.maySkipConfirmation = true,
 				.svipeAttach = chat,
 				.svipeSideMenu = !chat,
+				.svipeStartParam = startCommand,
 			},
 			.button = {
 				.text = info->botMenuButtonText,
@@ -706,6 +714,7 @@ void Open(
 				.maySkipConfirmation = true,
 				.svipeAttach = chat,
 				.svipeSideMenu = !chat,
+				.svipeStartParam = startCommand,
 			},
 			.button = { .startCommand = startCommand },
 			.source = InlineBots::WebViewSourceBotProfile(),
@@ -717,6 +726,7 @@ void SignContext(
 		not_null<UserData*> bot,
 		not_null<PeerData*> peer,
 		const QString &url,
+		const QString &startParam,
 		Fn<void(QString url)> done) {
 	const auto finished = std::make_shared<bool>(false);
 	const auto finish = [=](QString result) {
@@ -729,7 +739,7 @@ void SignContext(
 		return;
 	}
 	const auto session = &bot->session();
-	const auto body = ContextBody(bot, peer, url);
+	const auto body = ContextBody(bot, peer, url, startParam);
 	base::call_delayed(kSignTimeout, session, [=] {
 		finish(url);
 	});
