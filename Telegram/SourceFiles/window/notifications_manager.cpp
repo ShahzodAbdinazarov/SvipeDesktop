@@ -104,6 +104,10 @@ base::options::toggle OptionMacModernNotifications({
 	.description = "Use UserNotifications framework"
 		" for native notifications (macOS 10.14+)."
 		" System asks for notifications permission on first launch.",
+	// Svipe: on by default. With the old NSUserNotification API macOS brings the app forward for
+	// every notification button, so "Mark as read" opened the window it exists to avoid; the
+	// UserNotifications actions run in the background (options:0) and leave the app where it was.
+	.defaultValue = true,
 	.scope = base::options::macos,
 	.restartRequired = true,
 });
