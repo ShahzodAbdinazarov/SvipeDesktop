@@ -1997,6 +1997,14 @@ QString TryConvertUrlToLocal(QString url) {
 		const auto protocol = tonsiteMatch->captured(1);
 		return u"tonsite://"_q + url.mid(protocol.size());
 	}
+	// Svipe: svipe.uz/<bot>?startattach…, ?business=…, svipe.uz/<user>?attach=<bot> are the links for
+	// what only Svipe does; here they are exactly their t.me form. Other svipe.uz pages stay web pages.
+	if (const auto svipeMatch = regex_match(u"^(https?://)?(www\\.)?svipe\\.uz/([a-zA-Z0-9_]{4,32})/?\\?(.+)$"_q, url, matchOptions)) {
+		const auto query = svipeMatch->captured(4);
+		if (QRegularExpression(u"(^|&)(startattach|attach|choose|business)(=|&|$)"_q).match(query).hasMatch()) {
+			return TryConvertUrlToLocal(u"https://t.me/"_q + svipeMatch->captured(3) + '?' + query);
+		}
+	}
 	auto subdomainMatch = regex_match(u"^(https?://)?([a-zA-Z0-9\\_]+)\\.t\\.me(/\\d+)?/?(\\?.+)?"_q, url, matchOptions);
 	if (subdomainMatch) {
 		const auto name = subdomainMatch->captured(2);
