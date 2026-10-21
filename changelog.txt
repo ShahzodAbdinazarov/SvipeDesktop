@@ -1,3 +1,7 @@
+7.3.9 (21.10.26)
+
+- Svipe Desktop 1.0.21: svipe.uz links to what only Svipe bots can do open right in the app: adding a bot to the attachment menu or the side menu, connecting a business bot, and opening a bot in a chat. On macOS, notifications now use the system's modern notifications, so Mark as read in a notification keeps the app in the background.
+
 7.3.8 (19.10.26)
 
 - Svipe Desktop 1.0.20: bots in the attachment menu can do what Telegram's own attach bots do. A bot can appear only in the chats it chooses, show its own icon, ask to send you messages when you add it, know who the chat is with, and send a message to the chat. Your attachment menu is the same on all your devices. Fixed: clicking a bot's icon in the attachment menu did nothing.
