@@ -108,6 +108,16 @@ void GetBytes(const QString &url, Fn<void(QByteArray bytes, int code)> done) {
 	});
 }
 
+void Patch(
+		const QString &path,
+		const QJsonObject &body,
+		const QString &token,
+		Done done) {
+	Finish(
+		Manager().sendCustomRequest(Request(path, token), "PATCH", Serialize(body)),
+		std::move(done));
+}
+
 void Delete(const QString &path, const QString &token, Done done) {
 	Finish(Manager().deleteResource(Request(path, token)), std::move(done));
 }

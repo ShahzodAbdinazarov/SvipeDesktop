@@ -452,6 +452,46 @@ Translations Lookup(Str key) {
 		"Thank you, we'll look into it.",
 		"Rahmat, ko'rib chiqamiz.",
 		"Спасибо, мы проверим." };
+	case Str::ProfileTabRequest: return {
+		"%1 asks to add a tab to your profile. People who open your profile in Svipe will see it.",
+		"%1 profilingizga tab qo'shishni so'ramoqda. Profilingizni Svipe'da ochganlar uni ko'radi.",
+		"%1 просит добавить вкладку в ваш профиль. Её увидят все, кто откроет ваш профиль в Svipe." };
+	case Str::ProfileTabAdd: return {
+		"Add to Profile",
+		"Profilga qo'shish",
+		"Добавить в профиль" };
+	case Str::ProfileTabFullTitle: return {
+		"Profile tabs are full",
+		"Profil tablari to'lgan",
+		"Вкладки профиля заполнены" };
+	case Str::ProfileTabFullText: return {
+		"Your profile can have up to %1 bot tabs. Choose one to replace with %2.",
+		"Profilingizda ko'pi bilan %1 ta bot tabi bo'lishi mumkin. %2 qaysi birining o'rniga qo'yilsin, tanlang.",
+		"В профиле может быть не больше %1 вкладок ботов. Выберите, какую заменить на %2." };
+	case Str::ProfileTabReplace: return {
+		"Replace",
+		"Almashtirish",
+		"Заменить" };
+	case Str::ProfileTabAdded: return {
+		"%1 tab added to your profile.",
+		"%1 tabi profilingizga qo'shildi.",
+		"Вкладка %1 добавлена в ваш профиль." };
+	case Str::ProfileTabNotRegistered: return {
+		"This bot can't add a tab to your profile.",
+		"Bu bot profilingizga tab qo'sha olmaydi.",
+		"Этот бот не может добавить вкладку в ваш профиль." };
+	case Str::ProfileTabEveryone: return {
+		"Shown to everyone",
+		"Hammaga ko'rinadi",
+		"Видна всем" };
+	case Str::ProfileTabOnlyMe: return {
+		"Shown only to me",
+		"Faqat menga ko'rinadi",
+		"Видна только мне" };
+	case Str::ProfileTabRemove: return {
+		"Remove from profile",
+		"Profildan olib tashlash",
+		"Убрать из профиля" };
 	case Str::AvatarSettingsFailed: return {
 		"Couldn't reach the server. Try again.",
 		"Serverga ulanib bo'lmadi. Qayta urinib ko'ring.",

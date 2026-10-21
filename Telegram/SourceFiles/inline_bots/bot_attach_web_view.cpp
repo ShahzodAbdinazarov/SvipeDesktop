@@ -104,6 +104,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtGui/QGuiApplication>
 #include <QtGui/QScreen>
 #include "svipe/svipe_bot_contacts.h"
+#include "svipe/svipe_bot_tab.h"
 #include "svipe/svipe_strings.h"
 #include "styles/style_info.h" // infoVerifiedStar.
 #include "styles/style_layers.h"
@@ -1916,6 +1917,25 @@ void WebViewInstance::show(ShowArgs &&args) {
 		return;
 	}
 
+	// Svipe: opened from a card on someone's profile, that person is signed in as chat_type "profile".
+	if (!_svipeSigned) {
+		if (const auto owner = Svipe::BotTab::TakeOpenedFromProfile(_bot)) {
+			_svipeSigned = true;
+			Svipe::AttachMenu::SignContext(
+				_bot,
+				owner,
+				args.result.url,
+				QString(),
+				crl::guard(this, [=](QString url) {
+					auto copy = args;
+					copy.result.url = url;
+					show(std::move(copy));
+				}),
+				u"profile"_q);
+			return;
+		}
+	}
+
 	const auto &bots = _session->attachWebView().attachBots();
 
 	using Button = Ui::BotWebView::MenuButton;
@@ -2920,6 +2940,15 @@ void WebViewInstance::botAttachMenuAdd(Fn<void(bool added)> callback) {
 	Svipe::AttachMenu::Request(uiShow(), _bot, true, [=](bool, bool added) {
 		callback(added);
 	});
+}
+
+void WebViewInstance::botProfileTabStatus(Fn<void(QString status)> callback) {
+	Svipe::BotTab::ProfileTabStatus(_bot, std::move(callback));
+}
+
+void WebViewInstance::botProfileTabAdd(
+		Fn<void(bool shownNow, bool added)> callback) {
+	Svipe::BotTab::RequestProfileTab(uiShow(), _bot, true, std::move(callback));
 }
 
 // Svipe: answerWebAppQuery for any bot opened from the attachment menu in a

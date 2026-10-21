@@ -77,6 +77,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "wallet/wallet_panel.h"
 #include "wallet/wallet_ton_connect_link.h"
 #include "apiwrap.h"
+#include "svipe/svipe_bot_tab.h"
 
 #include "styles/style_chat_helpers.h"
 
@@ -725,6 +726,12 @@ bool ResolveUsernameOrPhone(
 		if (startToken.isEmpty() && params.contains(u"startapp"_q)) {
 			startToken = params.value(u"startapp"_q);
 		}
+	}
+	// Svipe: t.me|svipe.uz/<bot>?profiletab — the bot asks for a tab on the person's profile.
+	if (params.contains(u"profiletab"_q) && validDomain(domain)) {
+		controller->window().activate();
+		Svipe::BotTab::RequestProfileTabByUsername(controller, domain);
+		return true;
 	}
 	controller->window().activate();
 	controller->showPeerByLink(Window::PeerByLinkInfo{
@@ -2001,7 +2008,7 @@ QString TryConvertUrlToLocal(QString url) {
 	// what only Svipe does; here they are exactly their t.me form. Other svipe.uz pages stay web pages.
 	if (const auto svipeMatch = regex_match(u"^(https?://)?(www\\.)?svipe\\.uz/([a-zA-Z0-9_]{4,32})/?\\?(.+)$"_q, url, matchOptions)) {
 		const auto query = svipeMatch->captured(4);
-		if (QRegularExpression(u"(^|&)(startattach|attach|choose|business|sidemenu)(=|&|$)"_q).match(query).hasMatch()) {
+		if (QRegularExpression(u"(^|&)(startattach|attach|choose|business|sidemenu|profiletab)(=|&|$)"_q).match(query).hasMatch()) {
 			return TryConvertUrlToLocal(u"https://t.me/"_q + svipeMatch->captured(3) + '?' + query);
 		}
 	}

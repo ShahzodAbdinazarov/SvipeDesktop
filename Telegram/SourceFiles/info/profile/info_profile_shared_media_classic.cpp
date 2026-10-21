@@ -364,6 +364,15 @@ object_ptr<Ui::SlideWrap<Ui::RpWidget>> SetupSharedMediaClassic(
 			user,
 			tracker,
 			st::infoIconMediaPhoto);
+		// Svipe: bots' tabs the person put on their own profile.
+		if (!user->isBot()) {
+			Svipe::BotTab::AddProfileClassicButtons(
+				content,
+				controller->parentController(),
+				user,
+				tracker,
+				st::infoIconMediaBot);
+		}
 	}
 	if (const auto bot = peer->asBot()) {
 		addCommonGroupsButton(bot, st::infoIconMediaGroup);

@@ -420,7 +420,8 @@ void ShowBox(
 		not_null<UserData*> bot,
 		not_null<PeerData*> peer,
 		const QString &url,
-		const QString &startParam) {
+		const QString &startParam,
+		const QString &chatType) {
 	auto body = QJsonObject{ { u"bot_id"_q, qint64(Id(bot)) } };
 	// A bot with only a menu button opens as from its own chat, and Telegram
 	// leaves the startattach value out of its initData: Svipe signs it.
@@ -438,6 +439,11 @@ void ShowBox(
 		if (key == u"chat_type"_q || key == u"chat_instance"_q) {
 			body.insert(key, QUrl::fromPercentEncoding(pair.mid(eq + 1).toUtf8()));
 		}
+	}
+	// Opened from a bot's tab on someone's profile: signed as that, whatever Telegram said.
+	if (!chatType.isEmpty()) {
+		body.insert(u"chat_type"_q, chatType);
+		body.remove(u"chat_instance"_q);
 	}
 	const auto optional = [](QJsonObject &object, const QString &key, const QString &value) {
 		if (!value.isEmpty()) {
@@ -727,7 +733,8 @@ void SignContext(
 		not_null<PeerData*> peer,
 		const QString &url,
 		const QString &startParam,
-		Fn<void(QString url)> done) {
+		Fn<void(QString url)> done,
+		const QString &chatType) {
 	const auto finished = std::make_shared<bool>(false);
 	const auto finish = [=](QString result) {
 		if (!std::exchange(*finished, true)) {
@@ -739,7 +746,7 @@ void SignContext(
 		return;
 	}
 	const auto session = &bot->session();
-	const auto body = ContextBody(bot, peer, url, startParam);
+	const auto body = ContextBody(bot, peer, url, startParam, chatType);
 	base::call_delayed(kSignTimeout, session, [=] {
 		finish(url);
 	});

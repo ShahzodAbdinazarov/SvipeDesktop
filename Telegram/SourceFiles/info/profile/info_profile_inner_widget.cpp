@@ -327,6 +327,12 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			if (const auto channel = _peer->asBroadcast()) {
 				tabs.push_back(Svipe::BotTab::MakeTabDescriptor(channel));
 			}
+			// Svipe: bots' tabs the person put on their own profile, up to three.
+			if (const auto user = _peer->asUser(); user && !user->isBot()) {
+				for (auto i = 0; i != 3; ++i) {
+					tabs.push_back(Svipe::BotTab::MakeProfileTabDescriptor(user, i));
+				}
+			}
 			// Svipe: current and kept-after-deletion profile photos, the last tab as on Android.
 			if (const auto user = _peer->asUser(); user && !user->isBot()) {
 				tabs.push_back(Svipe::ProfileImages::MakeTabDescriptor(user));

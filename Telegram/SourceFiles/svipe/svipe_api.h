@@ -25,6 +25,11 @@ void Post(
 	const QJsonObject &body,
 	const QString &token,
 	Done done);
+void Patch(
+	const QString &path,
+	const QJsonObject &body,
+	const QString &token,
+	Done done);
 void Delete(const QString &path, const QString &token, Done done);
 
 // Raw bytes to / from a presigned storage URL (absolute, or relative to the Svipe server for the

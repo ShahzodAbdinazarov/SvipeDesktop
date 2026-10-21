@@ -93,7 +93,8 @@ void SignContext(
 	not_null<PeerData*> peer,
 	const QString &url,
 	const QString &startParam,
-	Fn<void(QString url)> done);
+	Fn<void(QString url)> done,
+	const QString &chatType = QString()); // e.g. "profile": from a bot's tab on `peer`'s profile
 
 // Sends a message the bot prepared (Bot API savePreparedInlineMessage) with `action`, as
 // answerWebAppQuery sends one for Telegram's own attach bots. done gets an empty string when sent,

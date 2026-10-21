@@ -2438,6 +2438,14 @@ bool Panel::createWebview(const Webview::ThemeParams &params) {
 			postEvent("attach_menu_checked", QJsonObject{
 				{ u"status"_q, _delegate->botAttachMenuStatus() },
 			});
+		} else if (command == "web_app_add_to_profile") {
+			requestProfileTabAdd();
+		} else if (command == "web_app_check_profile_tab") {
+			_delegate->botProfileTabStatus(crl::guard(this, [=](QString status) {
+				postEvent("profile_tab_checked", QJsonObject{
+					{ u"status"_q, status },
+				});
+			}));
 		} else if (command == "web_app_send_to_chat") {
 			sendToChat(arguments);
 		} else if (command == "web_app_invoke_custom_method") {
@@ -3154,6 +3162,26 @@ void Panel::requestAttachMenuAdd() {
 				{ u"error"_q, (_delegate->botAttachMenuStatus() == u"declined"_q)
 					? u"USER_DECLINED"_q
 					: u"UNSUPPORTED"_q },
+			});
+		}
+	}));
+}
+
+void Panel::requestProfileTabAdd() {
+	if (_inBlockingRequest) {
+		postEvent("profile_tab_failed", QJsonObject{
+			{ u"error"_q, u"UNSUPPORTED"_q },
+		});
+		return;
+	}
+	_inBlockingRequest = true;
+	_delegate->botProfileTabAdd(crl::guard(this, [=](bool shown, bool added) {
+		_inBlockingRequest = false;
+		if (added) {
+			postEvent("profile_tab_added");
+		} else {
+			postEvent("profile_tab_failed", QJsonObject{
+				{ u"error"_q, shown ? u"USER_DECLINED"_q : u"UNSUPPORTED"_q },
 			});
 		}
 	}));

@@ -136,6 +136,16 @@ enum class Str {
 	BotTabErrorNoRename,
 	BotTabReport,
 	BotTabReported,
+	ProfileTabRequest,
+	ProfileTabAdd,
+	ProfileTabFullTitle,
+	ProfileTabFullText,
+	ProfileTabReplace,
+	ProfileTabAdded,
+	ProfileTabNotRegistered,
+	ProfileTabEveryone,
+	ProfileTabOnlyMe,
+	ProfileTabRemove,
 };
 
 // "N exceptions", with each language's plural forms.
