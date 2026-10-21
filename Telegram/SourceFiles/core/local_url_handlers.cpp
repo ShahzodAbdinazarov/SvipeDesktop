@@ -2001,7 +2001,7 @@ QString TryConvertUrlToLocal(QString url) {
 	// what only Svipe does; here they are exactly their t.me form. Other svipe.uz pages stay web pages.
 	if (const auto svipeMatch = regex_match(u"^(https?://)?(www\\.)?svipe\\.uz/([a-zA-Z0-9_]{4,32})/?\\?(.+)$"_q, url, matchOptions)) {
 		const auto query = svipeMatch->captured(4);
-		if (QRegularExpression(u"(^|&)(startattach|attach|choose|business)(=|&|$)"_q).match(query).hasMatch()) {
+		if (QRegularExpression(u"(^|&)(startattach|attach|choose|business|sidemenu)(=|&|$)"_q).match(query).hasMatch()) {
 			return TryConvertUrlToLocal(u"https://t.me/"_q + svipeMatch->captured(3) + '?' + query);
 		}
 	}
