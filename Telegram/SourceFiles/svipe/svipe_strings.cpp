@@ -492,6 +492,18 @@ Translations Lookup(Str key) {
 		"Remove from profile",
 		"Profildan olib tashlash",
 		"Убрать из профиля" };
+	case Str::SttEngineSvipe: return {
+		"Transcription by Svipe, free for everyone. Hold the button to switch.",
+		"Ovozni matnga Svipe o'giradi, hamma uchun bepul. Almashtirish uchun tugmani bosib turing.",
+		"Расшифровка от Svipe, бесплатно для всех. Чтобы переключить, зажмите кнопку." };
+	case Str::SttEngineTelegram: return {
+		"Transcription by Telegram. Hold the button to switch back.",
+		"Ovozni matnga Telegram o'giradi. Qaytarish uchun tugmani bosib turing.",
+		"Расшифровка от Telegram. Чтобы вернуть, зажмите кнопку." };
+	case Str::SttFailed: return {
+		"Couldn't transcribe this message. Please try again.",
+		"Xabarni matnga o'girib bo'lmadi. Qaytadan urinib ko'ring.",
+		"Не удалось расшифровать сообщение. Попробуйте ещё раз." };
 	case Str::AvatarSettingsFailed: return {
 		"Couldn't reach the server. Try again.",
 		"Serverga ulanib bo'lmadi. Qayta urinib ko'ring.",

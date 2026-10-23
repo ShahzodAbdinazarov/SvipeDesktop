@@ -23,6 +23,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/rect.h"
 #include "api/api_transcribes.h"
+#include "svipe/svipe_stt.h"
+#include "svipe/svipe_strings.h"
 #include "apiwrap.h"
 #include "styles/style_chat.h"
 #include "window/window_session_controller.h"
@@ -31,6 +33,7 @@ namespace HistoryView {
 namespace {
 
 constexpr auto kInNonChosenOpacity = 0.12;
+constexpr auto kSvipeHoldToSwitch = crl::time(500);
 constexpr auto kOutNonChosenOpacity = 0.18;
 constexpr auto kArrowPivotNear = 0.349;
 constexpr auto kArrowPivotFar = 1. - kArrowPivotNear;
@@ -231,6 +234,8 @@ void TranscribeButton::paint(
 				p,
 				r.topLeft() + st::historyFastTranscribeLockPos,
 				r.width());
+		} else if (Svipe::Stt::Active(&_item->history()->session())) {
+			context.st->historyFastTranscribeIconS().paintInCenter(p, r);
 		} else {
 			context.st->historyFastTranscribeIcon().paintInCenter(p, r);
 		}
@@ -318,6 +323,8 @@ void TranscribeButton::paint(
 				p,
 				r.topLeft() + st::historyTranscribeLockPos,
 				r.width());
+		} else if (Svipe::Stt::Active(&_item->history()->session())) {
+			stm->historyTranscribeIconS.paintInCenter(p, r);
 		} else {
 			stm->historyTranscribeIcon.paintInCenter(p, r);
 		}
@@ -332,6 +339,9 @@ void TranscribeButton::paint(
 bool TranscribeButton::hasLock() const {
 	const auto session = &_item->history()->session();
 	if (session->premium()) {
+		return false;
+	}
+	if (!_summarize && Svipe::Stt::Active(session)) {
 		return false;
 	}
 	const auto transcribes = &session->api().transcribes();
@@ -378,7 +388,20 @@ ClickHandlerPtr TranscribeButton::link() {
 		if (!item) {
 			return;
 		}
-		if (session->premium()) {
+		if (!summarize
+			&& _heldFor >= kSvipeHoldToSwitch
+			&& Svipe::Stt::Available(session)) {
+			const auto telegram = Svipe::Stt::ToggleEngine();
+			const auto my = context.other.value<ClickHandlerContext>();
+			if (const auto controller = my.sessionWindow.get()) {
+				controller->uiShow()->showToast(Svipe::Tr(telegram
+					? Svipe::Str::SttEngineTelegram
+					: Svipe::Str::SttEngineSvipe));
+			}
+			return;
+		}
+		if (session->premium()
+			|| (!summarize && Svipe::Stt::Active(session))) {
 			auto &transcribes = session->api().transcribes();
 			return summarize
 				? transcribes.toggleSummary(item)
@@ -426,6 +449,16 @@ bool TranscribeButton::contains(const QPoint &p) {
 		return _summarizeHovered;
 	} else {
 		return QRect(_lastPaintedPoint, size()).contains(p);
+	}
+}
+
+void TranscribeButton::setPressed(bool pressed) {
+	if (pressed) {
+		_pressedAt = crl::now();
+		_heldFor = 0;
+	} else if (_pressedAt) {
+		_heldFor = crl::now() - _pressedAt;
+		_pressedAt = 0;
 	}
 }
 

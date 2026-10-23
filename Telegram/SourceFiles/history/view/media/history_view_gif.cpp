@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "apiwrap.h"
 #include "api/api_transcribes.h"
+#include "svipe/svipe_stt.h"
 #include "lang/lang_keys.h"
 #include "mainwindow.h"
 #include "main/main_session.h"
@@ -1657,6 +1658,7 @@ void Gif::clickHandlerPressedChanged(
 	if (!handler) {
 		return;
 	} else if (_transcribe && (handler == _transcribe->link())) {
+		_transcribe->setPressed(pressed);
 		if (pressed) {
 			_transcribe->addRipple([=] { repaint(); });
 		} else {
@@ -2736,6 +2738,7 @@ void Gif::ensureTranscribeButton() const {
 		&& !_parent->data()->isAdminLogEntry()
 		&& (_parent->context() != Context::MediaEditor)
 		&& (_data->session().premium()
+			|| Svipe::Stt::Available(&_data->session())
 			|| _data->session().api().transcribes().trialsSupport())) {
 		if (!_transcribe) {
 			_transcribe = std::make_unique<TranscribeButton>(

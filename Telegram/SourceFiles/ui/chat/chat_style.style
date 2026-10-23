@@ -146,6 +146,11 @@ historyTranscribeInIcon: icon {{ "chat/voice_to_text", msgFileInBg }};
 historyTranscribeInIconSelected: icon {{ "chat/voice_to_text", msgFileInBgSelected }};
 historyTranscribeOutIcon: icon {{ "chat/voice_to_text", msgFileOutBg }};
 historyTranscribeOutIconSelected: icon {{ "chat/voice_to_text", msgFileOutBgSelected }};
+// Svipe: the same button when our own speech to text answers it (svipe/svipe_stt).
+historyTranscribeInIconS: icon {{ "chat/voice_to_text_s", msgFileInBg }};
+historyTranscribeInIconSSelected: icon {{ "chat/voice_to_text_s", msgFileInBgSelected }};
+historyTranscribeOutIconS: icon {{ "chat/voice_to_text_s", msgFileOutBg }};
+historyTranscribeOutIconSSelected: icon {{ "chat/voice_to_text_s", msgFileOutBgSelected }};
 historyTranscribeInHide: icon {{ "chat/voice_to_text_collapse", msgFileInBg }};
 historyTranscribeInHideSelected: icon {{ "chat/voice_to_text_collapse", msgFileInBgSelected }};
 historyTranscribeOutHide: icon {{ "chat/voice_to_text_collapse", msgFileOutBg }};
@@ -163,6 +168,7 @@ historyFastCommentsIcon: icon {{ "fast_comments", msgServiceFg }};
 historyFastCloseIcon: icon {{ "box_button_close", msgServiceFg }};
 historyFastMoreIcon: icon {{ "title_menu_dots", msgServiceFg, point(0px, -2px) }};
 historyFastTranscribeIcon: icon {{ "chat/voice_to_text", msgServiceFg }};
+historyFastTranscribeIconS: icon {{ "chat/voice_to_text_s", msgServiceFg }};
 historyFastTranscribeLock: icon {{ "chat/mini_lock", msgServiceFg }};
 historyPsaForwardPalette: TextPalette(defaultTextPalette) {
 	linkFg: boxTextFgGood;

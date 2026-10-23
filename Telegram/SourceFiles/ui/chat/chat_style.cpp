@@ -240,6 +240,7 @@ ChatStyle::ChatStyle(rpl::producer<ColorIndicesCompressed> colorIndices) {
 	make(_historyFastCommentsIcon, st::historyFastCommentsIcon);
 	make(_historyFastShareIcon, st::historyFastShareIcon);
 	make(_historyFastTranscribeIcon, st::historyFastTranscribeIcon);
+	make(_historyFastTranscribeIconS, st::historyFastTranscribeIconS);
 	make(_historyFastTranscribeLock, st::historyFastTranscribeLock);
 	make(_historyGoToOriginalIcon, st::historyGoToOriginalIcon);
 	make(_historyFastCloseIcon, st::historyFastCloseIcon);
@@ -544,6 +545,12 @@ ChatStyle::ChatStyle(rpl::producer<ColorIndicesCompressed> colorIndices) {
 		st::historyTranscribeInIconSelected,
 		st::historyTranscribeOutIcon,
 		st::historyTranscribeOutIconSelected);
+	make(
+		&MessageStyle::historyTranscribeIconS,
+		st::historyTranscribeInIconS,
+		st::historyTranscribeInIconSSelected,
+		st::historyTranscribeOutIconS,
+		st::historyTranscribeOutIconSSelected);
 	make(
 		&MessageStyle::historyTranscribeLock,
 		st::historyTranscribeInLock,

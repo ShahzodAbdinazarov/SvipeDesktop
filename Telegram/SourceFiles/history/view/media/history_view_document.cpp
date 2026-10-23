@@ -40,6 +40,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document_resolver.h"
 #include "data/data_file_click_handler.h"
 #include "api/api_transcribes.h"
+#include "svipe/svipe_stt.h"
 #include "apiwrap.h"
 #include "styles/style_chat.h"
 #include "styles/style_chat_style.h"
@@ -504,9 +505,11 @@ QSize Document::countOptimalSize() {
 			|| _realParent->isScheduled()
 			|| _realParent->isAdminLogEntry()
 			|| (!session->premium()
+				&& !Svipe::Stt::Available(session)
 				&& !transcribes->freeFor(_realParent)
 				&& !transcribes->trialsSupport())
 			|| (!session->premium()
+				&& !Svipe::Stt::Available(session)
 				&& _data->duration() > transcribes->trialsMaxLengthMs())) {
 			voice->transcribe = nullptr;
 			voice->transcribeText = {};
@@ -1955,6 +1958,10 @@ void Document::clickHandlerActiveChanged(const ClickHandlerPtr &p, bool active) 
 
 void Document::clickHandlerPressedChanged(const ClickHandlerPtr &p, bool pressed) {
 	if (auto voice = Get<HistoryDocumentVoice>()) {
+		if (voice->transcribe && p == voice->transcribe->link()) {
+			// Svipe: holding the button swaps the engine (S/A).
+			voice->transcribe->setPressed(pressed);
+		}
 		if (pressed && p == voice->seekl && !voice->seeking()) {
 			voice->startSeeking();
 		} else if (!pressed && voice->seeking()) {

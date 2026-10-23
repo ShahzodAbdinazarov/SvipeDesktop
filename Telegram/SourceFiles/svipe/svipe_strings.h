@@ -146,6 +146,9 @@ enum class Str {
 	ProfileTabEveryone,
 	ProfileTabOnlyMe,
 	ProfileTabRemove,
+	SttEngineSvipe,
+	SttEngineTelegram,
+	SttFailed,
 };
 
 // "N exceptions", with each language's plural forms.

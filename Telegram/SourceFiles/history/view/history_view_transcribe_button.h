@@ -34,6 +34,8 @@ public:
 	[[nodiscard]] bool loading() const;
 	void paint(QPainter &p, int x, int y, const PaintContext &context);
 	void addRipple(Fn<void()> callback);
+	// Svipe: a press held this long swaps the engine (S/A) instead of transcribing.
+	void setPressed(bool pressed);
 	void stopRipple() const;
 
 	[[nodiscard]] ClickHandlerPtr link();
@@ -58,6 +60,8 @@ private:
 	bool _loading = false;
 	bool _opened = false;
 	bool _summaryShown = false;
+	crl::time _pressedAt = 0;
+	crl::time _heldFor = 0;
 
 };
 

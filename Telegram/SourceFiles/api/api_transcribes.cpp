@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
 #include "spellcheck/spellcheck_types.h"
+#include "svipe/svipe_stt.h"
 
 namespace Api {
 
@@ -107,6 +108,13 @@ void Transcribes::toggle(not_null<HistoryItem*> item) {
 	if (i == _map.end()) {
 		load(item);
 		_session->data().requestItemResize(item);
+	} else if (i->second.failed
+		&& !i->second.requestId
+		&& Svipe::Stt::Active(_session)) {
+		// Svipe: our engine keeps nothing for a failure, so a tap tries again.
+		_map.erase(i);
+		load(item);
+		_session->data().requestItemResize(item);
 	} else if (!i->second.requestId) {
 		i->second.shown = !i->second.shown;
 		if (i->second.roundview) {
@@ -185,6 +193,29 @@ void Transcribes::load(not_null<HistoryItem*> item) {
 		}
 	};
 	const auto id = item->fullId();
+	if (Svipe::Stt::Active(_session)) {
+		// Svipe: our own speech to text, for everyone (svipe/svipe_stt).
+		auto &entry = _map.emplace(id).first->second;
+		entry.requestId = -1;
+		entry.shown = true;
+		entry.failed = false;
+		entry.pending = false;
+		Svipe::Stt::Transcribe(item, [=](std::optional<QString> text) {
+			auto &entry = _map[id];
+			entry.requestId = 0;
+			entry.pending = false;
+			if (text) {
+				entry.result = *text;
+			} else {
+				entry.failed = true;
+			}
+			if (const auto item = _session->data().message(id)) {
+				toggleRound(item, entry);
+				_session->data().requestItemResize(item);
+			}
+		});
+		return;
+	}
 	const auto requestId = _api.request(MTPmessages_TranscribeAudio(
 		item->history()->peer->input(),
 		MTP_int(item->id)

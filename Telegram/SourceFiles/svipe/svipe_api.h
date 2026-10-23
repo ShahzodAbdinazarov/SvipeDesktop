@@ -41,4 +41,12 @@ void PutBytes(
 	Fn<void(int code)> done);
 void GetBytes(const QString &url, Fn<void(QByteArray bytes, int code)> done);
 
+// Raw bytes to a Svipe endpoint, with the token: a voice note to /v1/stt. JSON answer, as Post.
+void PostBytes(
+	const QString &path,
+	const QByteArray &bytes,
+	const QString &contentType,
+	const QString &token,
+	Done done);
+
 } // namespace Svipe::Api

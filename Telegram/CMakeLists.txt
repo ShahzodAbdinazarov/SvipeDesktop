@@ -2072,6 +2072,8 @@ PRIVATE
     svipe/svipe_storage.h
     svipe/svipe_strings.cpp
     svipe/svipe_strings.h
+    svipe/svipe_stt.cpp
+    svipe/svipe_stt.h
     svipe/svipe_version.h
     tde2e/tde2e_integration.cpp
     tde2e/tde2e_integration.h

@@ -108,6 +108,19 @@ void GetBytes(const QString &url, Fn<void(QByteArray bytes, int code)> done) {
 	});
 }
 
+void PostBytes(
+		const QString &path,
+		const QByteArray &bytes,
+		const QString &contentType,
+		const QString &token,
+		Done done) {
+	auto request = Request(path, token);
+	request.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
+	// The provider takes a few seconds per voice note; the upload itself is small.
+	request.setTransferTimeout(8 * kTimeoutMs);
+	Finish(Manager().post(request, bytes), std::move(done));
+}
+
 void Patch(
 		const QString &path,
 		const QJsonObject &body,
