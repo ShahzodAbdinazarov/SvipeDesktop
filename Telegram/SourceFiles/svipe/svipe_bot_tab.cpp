@@ -166,7 +166,7 @@ Global &G() {
 	state->active = forceActive
 		|| (res.value(u"state"_q).toString() == u"active"_q);
 	state->botUsername = OptString(res.value(u"bot"_q).toObject(), u"username"_q);
-	state->botId = uint64(res.value(u"bot"_q).toObject().value(u"bot_id"_q).toInteger());
+	state->botId = uint64(res.value(u"bot"_q).toObject().value(u"bot_id"_q).toVariant().toLongLong());
 	state->chatType = OptString(res, u"chat_type"_q);
 	state->place = OptString(res, u"place"_q);
 	const auto empty = res.value(u"empty"_q).toObject();
@@ -1036,7 +1036,7 @@ void FillSettings(
 	for (const auto &value : res.value(u"tabs"_q).toArray()) {
 		const auto o = value.toObject();
 		result.push_back({
-			.botId = uint64(o.value(u"bot_id"_q).toInteger()),
+			.botId = uint64(o.value(u"bot_id"_q).toVariant().toLongLong()),
 			.username = OptString(o, u"username"_q),
 			.title = OptString(o, u"title"_q),
 			.everyone = (o.value(u"visibility"_q).toString() != u"me"_q),
