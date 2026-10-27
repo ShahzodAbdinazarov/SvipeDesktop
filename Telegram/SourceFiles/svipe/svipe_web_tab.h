@@ -47,6 +47,8 @@ private:
 	void place();
 	void handle(const QString &command, const QJsonObject &arguments);
 	void postEvent(const QString &event, const QJsonObject &data = {});
+	void sendWheel(QPoint pixelDelta, QPoint angleDelta, Qt::KeyboardModifiers modifiers);
+	void pushPageTakesWheel(bool force = false);
 	[[nodiscard]] bool profileFullyScrolled() const;
 	[[nodiscard]] bool covered(QRect global) const;
 	[[nodiscard]] int pageHeight() const;
@@ -58,6 +60,7 @@ private:
 	int _visibleBottom = 0;
 	int _overlay = 0;
 	bool _active = true;
+	std::optional<bool> _pageHandsWheel;
 
 };
 

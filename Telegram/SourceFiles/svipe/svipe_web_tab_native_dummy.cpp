@@ -1,11 +1,16 @@
 /*
 Svipe Desktop — Svipe additions to Telegram Desktop.
 
-Not yet on this platform: the page shows unclipped and takes the scroll wheel itself.
+Windows and Linux: the web view is a child window, cut to the native host by the system, and the
+page hands the wheel over itself (svipe_web_tab.cpp).
 */
 #include "svipe/svipe_web_tab_native.h"
 
 namespace Svipe::WebTabNative {
+
+bool TakesWheel() {
+	return false;
+}
 
 void ClipToBounds(not_null<QWidget*> widget) {
 }

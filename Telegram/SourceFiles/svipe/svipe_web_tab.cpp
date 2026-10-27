@@ -40,6 +40,25 @@ postEvent: function(eventType, eventData) {
 }
 };)";
 
+// Where the app can't take the wheel from the web view (Windows, Linux), the page hands it over while
+// the profile still has to scroll: the app tells it when with __svipeTabHandWheel(true|false).
+constexpr auto kWheelScript = R"(
+(function() {
+	var hand = false;
+	window.__svipeTabHandWheel = function(value) { hand = !!value; };
+	window.addEventListener('wheel', function(e) {
+		if (!hand || !window.external || !window.external.invoke) {
+			return;
+		}
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		window.external.invoke(JSON.stringify(['svipe_tab_wheel', {
+			dx: e.deltaX, dy: e.deltaY, mode: e.deltaMode,
+			shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey
+		}]));
+	}, { capture: true, passive: false });
+})();)";
+
 } // namespace
 
 struct View::Private {
@@ -222,6 +241,12 @@ void View::createHost() {
 		params.scrollBarBg,
 		params.scrollBarBgOver);
 	raw->init(QByteArray(kProxyScript));
+	if (!WebTabNative::TakesWheel()) {
+		raw->init(QByteArray(kWheelScript));
+		raw->setNavigationDoneHandler(crl::guard(this, [=](bool) {
+			pushPageTakesWheel(true);
+		}));
+	}
 	raw->setMessageHandler([=](const QJsonDocument &message) {
 		const auto list = message.array();
 		if (list.isEmpty()) {
@@ -255,31 +280,52 @@ void View::createHost() {
 	_private->wheel = WebTabNative::TakeWheel(host, [=] {
 		return weak && !profileFullyScrolled();
 	}, [=](WebTabNative::Wheel wheel) {
-		if (!weak) {
-			return;
+		if (weak) {
+			sendWheel(wheel.pixelDelta, wheel.angleDelta, wheel.modifiers);
 		}
-		auto scroll = static_cast<QAbstractScrollArea*>(nullptr);
-		for (auto parent = parentWidget(); parent; parent = parent->parentWidget()) {
-			if ((scroll = dynamic_cast<QAbstractScrollArea*>(parent))) {
-				break;
-			}
-		}
-		if (!scroll) {
-			return;
-		}
-		const auto viewport = scroll->viewport();
-		const auto global = QCursor::pos();
-		auto event = QWheelEvent(
-			viewport->mapFromGlobal(global),
-			global,
-			wheel.pixelDelta,
-			wheel.angleDelta,
-			Qt::NoButton,
-			wheel.modifiers,
-			wheel.phase,
-			wheel.inverted);
-		QCoreApplication::sendEvent(viewport, &event);
 	});
+}
+
+void View::sendWheel(
+		QPoint pixelDelta,
+		QPoint angleDelta,
+		Qt::KeyboardModifiers modifiers) {
+	auto scroll = static_cast<QAbstractScrollArea*>(nullptr);
+	for (auto parent = parentWidget(); parent; parent = parent->parentWidget()) {
+		if ((scroll = dynamic_cast<QAbstractScrollArea*>(parent))) {
+			break;
+		}
+	}
+	if (!scroll) {
+		return;
+	}
+	const auto viewport = scroll->viewport();
+	const auto global = QCursor::pos();
+	auto event = QWheelEvent(
+		viewport->mapFromGlobal(global),
+		global,
+		pixelDelta,
+		angleDelta,
+		Qt::NoButton,
+		modifiers,
+		Qt::NoScrollPhase,
+		false);
+	QCoreApplication::sendEvent(viewport, &event);
+	pushPageTakesWheel();
+}
+
+void View::pushPageTakesWheel(bool force) {
+	if (WebTabNative::TakesWheel() || !_private->webview) {
+		return;
+	}
+	const auto hand = !profileFullyScrolled();
+	if (!force && _pageHandsWheel == hand) {
+		return;
+	}
+	_pageHandsWheel = hand;
+	_private->webview->eval(hand
+		? "window.__svipeTabHandWheel && window.__svipeTabHandWheel(true);"
+		: "window.__svipeTabHandWheel && window.__svipeTabHandWheel(false);");
 }
 
 bool View::covered(QRect global) const {
@@ -306,6 +352,7 @@ void View::place() {
 	if (!host) {
 		return;
 	}
+	pushPageTakesWheel();
 	const auto window = this->window();
 	const auto hide = [&] {
 		if (!host->isHidden()) {
@@ -346,7 +393,23 @@ void View::place() {
 }
 
 void View::handle(const QString &command, const QJsonObject &arguments) {
-	if (command == u"web_app_request_theme"_q) {
+	if (command == u"svipe_tab_wheel"_q) {
+		// The page handed the wheel over (svipe_tab_wheel): the profile scrolls. A wheel's notch is
+		// 100 px in the page and 120 in Qt; a line, 40 px.
+		const auto mode = arguments.value(u"mode"_q).toInt();
+		const auto scale = (mode == 1) ? 40. : (mode == 2) ? 400. : 1.;
+		const auto dx = arguments.value(u"dx"_q).toDouble() * scale;
+		const auto dy = arguments.value(u"dy"_q).toDouble() * scale;
+		auto modifiers = Qt::KeyboardModifiers();
+		if (arguments.value(u"shift"_q).toBool()) modifiers |= Qt::ShiftModifier;
+		if (arguments.value(u"ctrl"_q).toBool()) modifiers |= Qt::ControlModifier;
+		if (arguments.value(u"alt"_q).toBool()) modifiers |= Qt::AltModifier;
+		sendWheel(
+			QPoint(),
+			QPoint(qRound(-dx * 1.2), qRound(-dy * 1.2)),
+			modifiers);
+		return;
+	} else if (command == u"web_app_request_theme"_q) {
 		postEvent(u"theme_changed"_q, QJsonObject{
 			{ u"theme_params"_q, QJsonDocument::fromJson(
 				Window::Theme::WebViewParams().json).object() },

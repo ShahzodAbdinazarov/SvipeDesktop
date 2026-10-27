@@ -41,6 +41,10 @@ namespace {
 
 } // namespace
 
+bool TakesWheel() {
+	return true;
+}
+
 void ClipToBounds(not_null<QWidget*> widget) {
 	const auto view = ViewOf(widget);
 	view.clipsToBounds = YES;

@@ -12,7 +12,11 @@ class QWidget;
 
 namespace Svipe::WebTabNative {
 
-// `widget` is native: what it holds is cut to its bounds.
+// Whether TakeWheel works here (macOS). Elsewhere the page itself hands the wheel over (a script in
+// the page, svipe_web_tab.cpp), as the web view runs in another process the app can't reach into.
+[[nodiscard]] bool TakesWheel();
+
+// `widget` is native: what it holds is cut to its bounds (a child window already is, on Windows).
 void ClipToBounds(not_null<QWidget*> widget);
 
 struct Wheel {
