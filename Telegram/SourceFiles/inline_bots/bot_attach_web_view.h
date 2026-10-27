@@ -347,8 +347,11 @@ private:
 	void botContactsOpenSettings() override;
 	QString botAttachMenuStatus() override;
 	void botAttachMenuAdd(Fn<void(bool added)> callback) override;
-	void botProfileTabStatus(Fn<void(QString status)> callback) override;
+	void botProfileTabStatus(
+		const QString &kind,
+		Fn<void(QString status)> callback) override;
 	void botProfileTabAdd(
+		const QString &kind,
 		Fn<void(bool shownNow, bool added)> callback) override;
 	void botSendToChat(
 		QString id,

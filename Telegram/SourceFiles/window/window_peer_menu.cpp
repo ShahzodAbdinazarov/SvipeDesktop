@@ -8,6 +8,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_peer_menu.h"
 
 #include "svipe/svipe_recent_actions_section.h"
+#include "svipe/svipe_bot_tab.h"
+#include "svipe/svipe_strings.h"
 
 #include "base/call_delayed.h"
 #include "menu/menu_check_item.h"
@@ -1954,6 +1956,14 @@ void Filler::fillHistoryActions() {
 	addExportChat();
 	if (_thread) {
 		Svipe::AddRecentActionsAction(_controller, _thread, _addAction);
+	}
+	// Svipe: Saved Messages' bot tab, mine alone (svipe.uz/bots/profile-tabs#places).
+	if (_peer && _peer->isSelf() && !_topic) {
+		const auto peer = _peer;
+		const auto controller = _controller;
+		_addAction(Svipe::Tr(Svipe::Str::BotTab), [=] {
+			Svipe::BotTab::ShowSettingsBox(controller->uiShow(), peer);
+		}, &st::menuIconBot);
 	}
 	addTranslate();
 	addReport();

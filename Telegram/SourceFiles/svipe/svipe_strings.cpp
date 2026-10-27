@@ -452,6 +452,34 @@ Translations Lookup(Str key) {
 		"Thank you, we'll look into it.",
 		"Rahmat, ko'rib chiqamiz.",
 		"Спасибо, мы проверим." };
+	case Str::BotTabCurrentGroup: return {
+		"Tab on the group profile",
+		"Guruh profilidagi tab",
+		"Вкладка в профиле группы" };
+	case Str::BotTabInfoGroup: return {
+		"The bot must be registered with Svipe. It checks that you are an admin of this group, then shows its tab on the group profile in Svipe.",
+		"Bot Svipe'da ro'yxatdan o'tgan bo'lishi kerak. U sizning shu guruh admini ekaningizni tekshiradi, so'ng Svipe'da guruh profilida o'z tabini ko'rsatadi.",
+		"Бот должен быть зарегистрирован в Svipe. Он проверит, что вы администратор этой группы, и покажет свою вкладку в профиле группы в Svipe." };
+	case Str::BotTabCurrentSaved: return {
+		"Tab in Saved Messages",
+		"Saqlangan xabarlardagi tab",
+		"Вкладка в Избранном" };
+	case Str::BotTabInfoSaved: return {
+		"The bot must be registered with Svipe. Only you will see its tab in Saved Messages in Svipe.",
+		"Bot Svipe'da ro'yxatdan o'tgan bo'lishi kerak. Uning tabini Svipe'da Saqlangan xabarlarda faqat siz ko'rasiz.",
+		"Бот должен быть зарегистрирован в Svipe. Его вкладку в Избранном в Svipe увидите только вы." };
+	case Str::ProfileTabRequestPrivate: return {
+		"%1 asks for a private tab: everyone who opens your profile will see it, and you will see it on the profiles of its other users. Each person sees only what concerns the two of you.",
+		"%1 shaxsiy tab so'ramoqda: profilingizni ochgan hamma uni ko'radi, siz esa uni botning boshqa foydalanuvchilari profilida ko'rasiz. Har kim faqat ikkingizga tegishli narsani ko'radi.",
+		"%1 просит личную вкладку: её увидят все, кто откроет ваш профиль, а вы будете видеть её в профилях других пользователей бота. Каждый видит только то, что касается вас двоих." };
+	case Str::ProfileTabFullTextPrivate: return {
+		"You can have up to %1 private bot tabs. Choose one to replace with %2.",
+		"Ko'pi bilan %1 ta shaxsiy bot tabi bo'lishi mumkin. %2 qaysi birining o'rniga qo'yilishini tanlang.",
+		"Личных вкладок ботов может быть не больше %1. Выберите, какую заменить на %2." };
+	case Str::ProfileTabAddedPrivate: return {
+		"%1 tab added. It is on your profile, and you'll see it on the profiles of its other users.",
+		"%1 tabi qo'shildi. U profilingizda turadi, siz esa uni botning boshqa foydalanuvchilari profilida ko'rasiz.",
+		"Вкладка %1 добавлена. Она в вашем профиле, а вы увидите её в профилях других пользователей бота." };
 	case Str::ProfileTabRequest: return {
 		"%1 asks to add a tab to your profile. People who open your profile in Svipe will see it.",
 		"%1 profilingizga tab qo'shishni so'ramoqda. Profilingizni Svipe'da ochganlar uni ko'radi.",

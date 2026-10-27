@@ -727,10 +727,15 @@ bool ResolveUsernameOrPhone(
 			startToken = params.value(u"startapp"_q);
 		}
 	}
-	// Svipe: t.me|svipe.uz/<bot>?profiletab — the bot asks for a tab on the person's profile.
-	if (params.contains(u"profiletab"_q) && validDomain(domain)) {
+	// Svipe: t.me|svipe.uz/<bot>?profiletab (or ?privatetab) — the bot asks for a tab on the
+	// person's profile (a private one).
+	if ((params.contains(u"profiletab"_q) || params.contains(u"privatetab"_q))
+		&& validDomain(domain)) {
 		controller->window().activate();
-		Svipe::BotTab::RequestProfileTabByUsername(controller, domain);
+		Svipe::BotTab::RequestProfileTabByUsername(
+			controller,
+			domain,
+			params.contains(u"privatetab"_q) ? u"private"_q : u"profile"_q);
 		return true;
 	}
 	controller->window().activate();

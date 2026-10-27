@@ -146,9 +146,12 @@ public:
 	// Svipe: any bot in the attachment menu (svipe/svipe_attach_menu.h).
 	[[nodiscard]] virtual QString botAttachMenuStatus() = 0;
 	virtual void botAttachMenuAdd(Fn<void(bool added)> callback) = 0;
-	// Svipe: a tab on the person's own profile, its own permission.
-	virtual void botProfileTabStatus(Fn<void(QString status)> callback) = 0;
+	// Svipe: a tab on the person's own profile, its own permission; kind "profile" or "private".
+	virtual void botProfileTabStatus(
+		const QString &kind,
+		Fn<void(QString status)> callback) = 0;
 	virtual void botProfileTabAdd(
+		const QString &kind,
 		Fn<void(bool shownNow, bool added)> callback) = 0;
 	// Svipe: web_app_send_to_chat, a message the bot prepared, to the chat the
 	// attachment menu opened the mini app in. accepted() once it is taken,
@@ -310,7 +313,7 @@ private:
 	void replyRequestPhone(bool shared);
 	void requestContacts();
 	void requestAttachMenuAdd();
-	void requestProfileTabAdd();
+	void requestProfileTabAdd(const QString &kind);
 	void sendToChat(const QJsonObject &args);
 	void requestPermission(Webview::PermissionType type, Fn<void(bool)> done);
 	void invokeCustomMethod(const QJsonObject &args);

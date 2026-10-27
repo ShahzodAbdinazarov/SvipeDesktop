@@ -364,15 +364,16 @@ object_ptr<Ui::SlideWrap<Ui::RpWidget>> SetupSharedMediaClassic(
 			user,
 			tracker,
 			st::infoIconMediaPhoto);
-		// Svipe: bots' tabs the person put on their own profile.
-		if (!user->isBot()) {
-			Svipe::BotTab::AddProfileClassicButtons(
-				content,
-				controller->parentController(),
-				user,
-				tracker,
-				st::infoIconMediaBot);
-		}
+		// Svipe: bots' tabs on the person's profile, or a bot's own.
+		Svipe::BotTab::AddProfileClassicButtons(
+			content,
+			controller->parentController(),
+			user,
+			tracker,
+			st::infoIconMediaBot,
+			(user->isBot()
+				? Svipe::BotTab::ProfileView::Bot
+				: Svipe::BotTab::ProfileView::Profile));
 	}
 	if (const auto bot = peer->asBot()) {
 		addCommonGroupsButton(bot, st::infoIconMediaGroup);
@@ -390,6 +391,17 @@ object_ptr<Ui::SlideWrap<Ui::RpWidget>> SetupSharedMediaClassic(
 		}
 	} else if (const auto user = peer->asUser()) {
 		addCommonGroupsButton(user, st::infoIconMediaGroup);
+	} else if ((peer->isChat() || peer->isMegagroup())
+		&& !peer->isMonoforum()
+		&& !topic
+		&& !sublist) {
+		// Svipe: the bot tab the group's admin added.
+		Svipe::BotTab::AddClassicButton(
+			content,
+			controller->parentController(),
+			peer,
+			tracker,
+			st::infoIconMediaBot);
 	}
 
 	auto result = object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(

@@ -290,6 +290,13 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 		};
 		if (_savedMessages) {
 			tabs.push_back(MakeChatsTabDescriptor());
+			// Svipe: the bot tab Saved Messages' owner put there.
+			if (const auto self = _peer->asUser(); self && self->isSelf()) {
+				tabs.push_back(Svipe::BotTab::MakeProfileTabDescriptor(
+					self,
+					0,
+					Svipe::BotTab::ProfileView::SavedMessages));
+			}
 		}
 		if (!_topic && !_savedMessages) {
 			tabs.push_back(MakeStoriesTabDescriptor(tabsPeer));
@@ -323,14 +330,19 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			if (_peer->asBot() || _peer->asBroadcast()) {
 				tabs.push_back(MakeSimilarPeersTabDescriptor(_peer));
 			}
-			// Svipe: the bot tab the channel's admin added.
-			if (const auto channel = _peer->asBroadcast()) {
-				tabs.push_back(Svipe::BotTab::MakeTabDescriptor(channel));
+			// Svipe: the bot tab the channel's or group's admin added.
+			if ((_peer->isChannel() || _peer->isChat()) && !_peer->isMonoforum()) {
+				tabs.push_back(Svipe::BotTab::MakeTabDescriptor(_peer));
 			}
-			// Svipe: bots' tabs the person put on their own profile, up to three.
-			if (const auto user = _peer->asUser(); user && !user->isBot()) {
-				for (auto i = 0; i != 3; ++i) {
-					tabs.push_back(Svipe::BotTab::MakeProfileTabDescriptor(user, i));
+			// Svipe: bots' tabs on the person's profile, up to three of each kind, or a bot's own.
+			if (const auto user = _peer->asUser()) {
+				for (auto i = 0; i != 6; ++i) {
+					tabs.push_back(Svipe::BotTab::MakeProfileTabDescriptor(
+						user,
+						i,
+						(user->isBot()
+							? Svipe::BotTab::ProfileView::Bot
+							: Svipe::BotTab::ProfileView::Profile)));
 				}
 			}
 			// Svipe: current and kept-after-deletion profile photos, the last tab as on Android.

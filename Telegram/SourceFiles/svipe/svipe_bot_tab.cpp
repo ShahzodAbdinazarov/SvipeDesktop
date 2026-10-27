@@ -5,6 +5,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 
 #include "apiwrap.h"
 #include "data/data_channel.h"
+#include "data/data_chat.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
 #include "info/info_controller.h"
@@ -48,6 +49,8 @@ namespace {
 
 constexpr auto kColumns = 3;
 constexpr auto kMaxProfileTabs = 3;
+// Tabs one profile can show: a bot's own, three of each kind, and the viewer's private ones.
+constexpr auto kMaxShownTabs = 6;
 constexpr auto kOpenedFromTimeout = crl::time(30'000);
 
 struct Card {
@@ -62,6 +65,13 @@ struct Card {
 struct State {
 	bool active = false;
 	QString botUsername;
+	// "channel", "supergroup", "group", "saved"; on a person's profile the place it is in
+	// ("profile", "private", "saved", "bot"): the chat_type its mini apps are signed in with.
+	QString chatType;
+	QString place;
+	// What the bot shows this viewer when it has no cards for them (live cards).
+	QString emptyText;
+	QString emptyImage;
 	QString title;
 	bool list = false;
 	bool isAttacher = false;
@@ -80,9 +90,24 @@ struct MyTab {
 	QString username;
 	QString title;
 	bool everyone = true;
+	QString kind; // "profile" or "private"
+	QString place; // on a profile I look at: where it is
 };
 
-// States by key: "c<channel>" for a channel's tab, "u<owner>_<bot>" for a tab on a person's profile.
+// A tab a profile screen shows me: whose bot, and where.
+struct Shown {
+	uint64 botId = 0;
+	QString place;
+};
+
+struct Opened {
+	PeerId peer;
+	QString chatType;
+	crl::time when = 0;
+};
+
+// States by key: "c<chat>" for a channel's or group's tab, "s" for Saved Messages' settings,
+// "u<owner><view>_<bot>_<place>" for a tab on a profile screen.
 struct Global {
 	base::flat_map<QString, std::shared_ptr<State>> states;
 	base::flat_set<QString> loadingMore;
@@ -91,11 +116,11 @@ struct Global {
 	rpl::event_stream<QString> updates;
 	rpl::event_stream<> imageLoaded;
 
-	base::flat_map<uint64, std::vector<uint64>> profiles; // owner -> the bots whose tabs I see there
+	base::flat_map<QString, std::vector<Shown>> profiles; // profile prefix -> the tabs I see there
 	std::vector<MyTab> mine;
 	bool mineLoaded = false;
-	base::flat_set<uint64> declined; // asked from a mini app and said no, this run
-	base::flat_map<uint64, std::pair<uint64, crl::time>> openedFrom; // bot -> (owner, when)
+	base::flat_set<QString> declined; // "<bot>:<kind>" asked from a mini app and said no, this run
+	base::flat_map<uint64, Opened> openedFrom; // bot -> where its card was opened
 };
 
 Global &G() {
@@ -108,12 +133,27 @@ Global &G() {
 	return value.isString() ? value.toString() : QString();
 }
 
-[[nodiscard]] QString ChannelKey(not_null<ChannelData*> channel) {
-	return u"c%1"_q.arg(peerToChannel(channel->id).bare);
+// The chat's tab on the server: a channel or supergroup by its id, a basic group by its negative id.
+[[nodiscard]] qint64 ChatId(not_null<PeerData*> peer) {
+	if (const auto channel = peer->asChannel()) {
+		return qint64(peerToChannel(channel->id).bare);
+	} else if (const auto chat = peer->asChat()) {
+		return -qint64(peerToChat(chat->id).bare);
+	}
+	return 0;
 }
 
-[[nodiscard]] QString UserKey(uint64 owner, uint64 bot) {
-	return u"u%1_%2"_q.arg(owner).arg(bot);
+[[nodiscard]] QString ChatType(not_null<PeerData*> peer) {
+	if (peer->isSelf()) {
+		return u"saved"_q;
+	} else if (const auto channel = peer->asChannel()) {
+		return channel->isBroadcast() ? u"channel"_q : u"supergroup"_q;
+	}
+	return u"group"_q;
+}
+
+[[nodiscard]] QString ChannelKey(not_null<PeerData*> peer) {
+	return peer->isSelf() ? u"s"_q : u"c%1"_q.arg(ChatId(peer));
 }
 
 [[nodiscard]] std::shared_ptr<State> Parse(
@@ -123,6 +163,12 @@ Global &G() {
 	state->active = forceActive
 		|| (res.value(u"state"_q).toString() == u"active"_q);
 	state->botUsername = OptString(res.value(u"bot"_q).toObject(), u"username"_q);
+	state->botId = uint64(res.value(u"bot"_q).toObject().value(u"bot_id"_q).toInteger());
+	state->chatType = OptString(res, u"chat_type"_q);
+	state->place = OptString(res, u"place"_q);
+	const auto empty = res.value(u"empty"_q).toObject();
+	state->emptyText = OptString(empty, u"text"_q);
+	state->emptyImage = OptString(empty, u"image"_q);
 	state->title = OptString(res, u"title"_q);
 	if (state->title.isEmpty()) {
 		state->title = state->botUsername;
@@ -153,19 +199,30 @@ Global &G() {
 	return (i != end(G().states)) ? i->second : nullptr;
 }
 
-[[nodiscard]] std::shared_ptr<State> Cached(not_null<ChannelData*> channel) {
-	return Cached(ChannelKey(channel));
+[[nodiscard]] bool ShowsEmpty(const std::shared_ptr<State> &state) {
+	return state
+		&& state->cards.empty()
+		&& (!state->emptyText.isEmpty() || !state->emptyImage.isEmpty());
 }
 
-void Load(not_null<ChannelData*> channel, Fn<void()> done = nullptr) {
-	const auto id = peerToChannel(channel->id);
+[[nodiscard]] std::shared_ptr<State> Cached(not_null<PeerData*> peer) {
+	return Cached(ChannelKey(peer));
+}
+
+[[nodiscard]] QString TabPath(not_null<PeerData*> peer) {
+	return peer->isSelf()
+		? u"/v1/chat-tabs/saved/0"_q
+		: u"/v1/channel-tabs/%1"_q.arg(ChatId(peer));
+}
+
+void Load(not_null<PeerData*> channel, Fn<void()> done = nullptr) {
 	const auto key = ChannelKey(channel);
 	Auth::EnsureToken(&channel->session(), [=](QString token) {
 		if (token.isEmpty()) {
 			return;
 		}
 		Api::Get(
-			u"/v1/channel-tabs/%1"_q.arg(id.bare),
+			TabPath(channel),
 			token,
 			[=](QJsonObject result, int code) {
 				if (code < 200 || code >= 300) {
@@ -215,10 +272,10 @@ void LoadMoreFrom(
 	});
 }
 
-void LoadMore(not_null<ChannelData*> channel) {
-	const auto id = peerToChannel(channel->id).bare;
+void LoadMore(not_null<PeerData*> channel) {
+	const auto path = TabPath(channel);
 	LoadMoreFrom(&channel->session(), ChannelKey(channel), [=](int offset) {
-		return u"/v1/channel-tabs/%1?offset=%2"_q.arg(id).arg(offset);
+		return path + u"?offset=%1"_q.arg(offset);
 	}, false);
 }
 
@@ -233,7 +290,7 @@ void Finish(const QJsonObject &result, int code, Done done) {
 	}
 }
 
-void WithToken(not_null<ChannelData*> channel, Done done, Fn<void(QString)> run) {
+void WithToken(not_null<PeerData*> channel, Done done, Fn<void(QString)> run) {
 	Auth::EnsureToken(&channel->session(), [=](QString token) {
 		if (token.isEmpty()) {
 			done(u"no_token"_q);
@@ -243,21 +300,18 @@ void WithToken(not_null<ChannelData*> channel, Done done, Fn<void(QString)> run)
 	});
 }
 
-[[nodiscard]] QString TabPath(not_null<ChannelData*> channel) {
-	return u"/v1/channel-tabs/%1"_q.arg(peerToChannel(channel->id).bare);
-}
-
-void Attach(not_null<ChannelData*> channel, QString bot, Done done) {
+void Attach(not_null<PeerData*> channel, QString bot, Done done) {
 	WithToken(channel, done, [=](QString token) {
 		Api::Put(TabPath(channel), QJsonObject{
 			{ u"bot_username"_q, bot },
+			{ u"chat_type"_q, ChatType(channel) },
 		}, token, [=](QJsonObject result, int code) {
 			Finish(result, code, done);
 		});
 	});
 }
 
-void Detach(not_null<ChannelData*> channel, Done done) {
+void Detach(not_null<PeerData*> channel, Done done) {
 	WithToken(channel, done, [=](QString token) {
 		Api::Delete(TabPath(channel), token, [=](QJsonObject result, int code) {
 			Finish(result, code, done);
@@ -265,7 +319,7 @@ void Detach(not_null<ChannelData*> channel, Done done) {
 	});
 }
 
-void Rename(not_null<ChannelData*> channel, QString title, Done done) {
+void Rename(not_null<PeerData*> channel, QString title, Done done) {
 	WithToken(channel, done, [=](QString token) {
 		auto body = QJsonObject();
 		body.insert(
@@ -281,7 +335,7 @@ void Rename(not_null<ChannelData*> channel, QString title, Done done) {
 	});
 }
 
-void Report(not_null<ChannelData*> channel, QString reason, Done done) {
+void Report(not_null<PeerData*> channel, QString reason, Done done) {
 	WithToken(channel, done, [=](QString token) {
 		Api::Post(TabPath(channel) + u"/report"_q, QJsonObject{
 			{ u"reason"_q, reason },
@@ -292,7 +346,7 @@ void Report(not_null<ChannelData*> channel, QString reason, Done done) {
 }
 
 [[nodiscard]] rpl::producer<std::shared_ptr<State>> StateValue(
-		not_null<ChannelData*> channel) {
+		not_null<PeerData*> channel) {
 	const auto key = ChannelKey(channel);
 	return rpl::single(key) | rpl::then(
 		G().updates.events() | rpl::filter(rpl::mappers::_1 == key)
@@ -301,7 +355,7 @@ void Report(not_null<ChannelData*> channel, QString reason, Done done) {
 	});
 }
 
-[[nodiscard]] rpl::producer<QString> TitleValue(not_null<ChannelData*> channel) {
+[[nodiscard]] rpl::producer<QString> TitleValue(not_null<PeerData*> channel) {
 	return StateValue(channel) | rpl::map([](std::shared_ptr<State> state) {
 		return (state && state->active) ? state->title : QString();
 	});
@@ -363,6 +417,9 @@ public:
 protected:
 	int resizeGetHeight(int newWidth) override {
 		const auto count = _state ? int(_state->cards.size()) : 0;
+		if (!count && ShowsEmpty(_state) && newWidth > 0) {
+			return emptyHeight(newWidth);
+		}
 		if (!count || newWidth <= 0) {
 			return 0;
 		}
@@ -376,6 +433,10 @@ protected:
 	void paintEvent(QPaintEvent *e) override {
 		auto p = QPainter(this);
 		if (!_state) {
+			return;
+		}
+		if (ShowsEmpty(_state)) {
+			paintEmpty(p);
 			return;
 		}
 		const auto clip = e->rect();
@@ -463,6 +524,69 @@ private:
 			}
 		}
 		return -1;
+	}
+
+	// The bot's empty state for this viewer: its image above a line of text, centred, as Android's.
+	[[nodiscard]] static int emptyPadding() {
+		return style::ConvertScale(40);
+	}
+	[[nodiscard]] static int emptyImageSize() {
+		return style::ConvertScale(120);
+	}
+	[[nodiscard]] QRect emptyTextRect(int width) const {
+		const auto padding = emptyPadding();
+		const auto top = padding
+			+ (_state->emptyImage.isEmpty()
+				? 0
+				: (emptyImageSize() + style::ConvertScale(16)));
+		const auto available = std::max(width - 2 * padding, 1);
+		const auto height = _state->emptyText.isEmpty()
+			? 0
+			: QFontMetrics(st::normalFont->f).boundingRect(
+				QRect(0, 0, available, 100000),
+				Qt::TextWordWrap | Qt::AlignHCenter,
+				_state->emptyText).height();
+		return QRect(padding, top, available, height);
+	}
+	[[nodiscard]] int emptyHeight(int width) const {
+		return emptyTextRect(width).y()
+			+ emptyTextRect(width).height()
+			+ emptyPadding();
+	}
+	void paintEmpty(QPainter &p) {
+		if (!_state->emptyImage.isEmpty()) {
+			const auto size = emptyImageSize();
+			const auto rect = QRect((width() - size) / 2, emptyPadding(), size, size);
+			if (const auto image = Image(_state->emptyImage)) {
+				const auto ratio = style::DevicePixelRatio();
+				const auto scaled = image->scaled(
+					rect.size() * ratio,
+					Qt::KeepAspectRatio,
+					Qt::SmoothTransformation);
+				const auto shown = QSize(scaled.width() / ratio, scaled.height() / ratio);
+				auto hq = PainterHighQualityEnabler(p);
+				auto path = QPainterPath();
+				path.addRoundedRect(rect, style::ConvertScale(12), style::ConvertScale(12));
+				p.save();
+				p.setClipPath(path);
+				p.drawImage(
+					QRect(
+						rect.x() + (size - shown.width()) / 2,
+						rect.y() + (size - shown.height()) / 2,
+						shown.width(),
+						shown.height()),
+					scaled);
+				p.restore();
+			}
+		}
+		if (!_state->emptyText.isEmpty()) {
+			p.setFont(st::normalFont);
+			p.setPen(st::windowSubTextFg);
+			p.drawText(
+				emptyTextRect(width()),
+				Qt::TextWordWrap | Qt::AlignHCenter,
+				_state->emptyText);
+		}
 	}
 
 	void paintCover(QPainter &p, const QImage &image, QRect rect) {
@@ -600,7 +724,14 @@ void AddReportActions(
 	}
 }
 
-[[nodiscard]] Source ChannelSource(not_null<ChannelData*> channel) {
+// The card about to open this bot's mini app: where it was, for svipeInitData (TakeOpenedFrom).
+void RememberOpened(uint64 botId, PeerId peer, const QString &chatType) {
+	if (botId) {
+		G().openedFrom[botId] = { peer, chatType, crl::now() };
+	}
+}
+
+[[nodiscard]] Source ChannelSource(not_null<PeerData*> channel) {
 	return {
 		.state = [=] { return StateValue(channel); },
 		.loadMore = [=](std::shared_ptr<State>) { LoadMore(channel); },
@@ -609,7 +740,9 @@ void AddReportActions(
 				Report(channel, reason, done);
 			});
 		},
-		.open = [](std::shared_ptr<State>, const Card &card) {
+		.open = [=](std::shared_ptr<State> state, const Card &card) {
+			// The mini app is told which chat this is (chat_type "channel", "supergroup", "group").
+			RememberOpened(state->botId, channel->id, ChatType(channel));
 			UrlClickHandler::Open(card.link);
 		},
 	};
@@ -698,7 +831,8 @@ void ShowCardsBox(
 void FillSettings(
 		not_null<Ui::GenericBox*> box,
 		std::shared_ptr<Ui::Show> show,
-		not_null<ChannelData*> channel) {
+		not_null<PeerData*> channel) {
+	const auto type = ChatType(channel);
 	const auto content = box->verticalLayout();
 	content->clear();
 	const auto state = Cached(channel);
@@ -716,7 +850,11 @@ void FillSettings(
 		});
 	};
 
-	Ui::AddSubsectionTitle(content, TrValue(Str::BotTabCurrent));
+	Ui::AddSubsectionTitle(content, TrValue((type == u"saved"_q)
+		? Str::BotTabCurrentSaved
+		: (type == u"channel"_q)
+		? Str::BotTabCurrent
+		: Str::BotTabCurrentGroup));
 	content->add(
 		object_ptr<Ui::FlatLabel>(content, StatusText(state), st::boxLabel),
 		st::boxRowPadding);
@@ -776,17 +914,48 @@ void FillSettings(
 		run([=](Done done) { Attach(channel, name, done); });
 	});
 	Ui::AddSkip(content);
-	Ui::AddDividerText(content, TrValue(Str::BotTabInfo));
+	Ui::AddDividerText(content, TrValue((type == u"saved"_q)
+		? Str::BotTabInfoSaved
+		: (type == u"channel"_q)
+		? Str::BotTabInfo
+		: Str::BotTabInfoGroup));
 	content->resizeToWidth(st::boxWideWidth);
 }
 
 // ---------------------------------------------------------------------------
-// Tabs on a person's own profile (app/api/profile_tabs.py, svipe.uz/bots/profile-tabs#profiles;
+// Tabs on a profile (app/api/profile_tabs.py, svipe.uz/bots/profile-tabs#profiles, #private;
 // Android: SvipeProfileTabs). A registered bot asks, the person agrees, the tab is live at once: at most
-// three, a fourth only in place of one the person picks; each shown to everyone or to its owner only.
+// three of each kind, a fourth only in place of one the person picks. Kind "profile": on their profile,
+// to everyone or to them only. Kind "private": on their profile to everyone, and to them on the profile
+// of each of the bot's other users. Saved Messages and a bot's own profile have theirs too.
 
 [[nodiscard]] uint64 Bare(not_null<UserData*> user) {
 	return peerToUser(user->id).bare;
+}
+
+[[nodiscard]] QString ViewTag(ProfileView view) {
+	switch (view) {
+	case ProfileView::SavedMessages: return u"s"_q;
+	case ProfileView::Bot: return u"b"_q;
+	case ProfileView::Profile: break;
+	}
+	return u"p"_q;
+}
+
+[[nodiscard]] QString ProfilePrefix(uint64 owner, ProfileView view) {
+	return u"u%1%2_"_q.arg(owner).arg(ViewTag(view));
+}
+
+[[nodiscard]] QString UserKey(
+		uint64 owner,
+		ProfileView view,
+		uint64 bot,
+		const QString &place) {
+	return ProfilePrefix(owner, view) + u"%1_%2"_q.arg(bot).arg(place);
+}
+
+[[nodiscard]] QString KindOf(const QString &kind) {
+	return (kind == u"private"_q) ? kind : u"profile"_q;
 }
 
 [[nodiscard]] std::vector<MyTab> ParseTabs(const QJsonObject &res) {
@@ -798,6 +967,8 @@ void FillSettings(
 			.username = OptString(o, u"username"_q),
 			.title = OptString(o, u"title"_q),
 			.everyone = (o.value(u"visibility"_q).toString() != u"me"_q),
+			.kind = KindOf(OptString(o, u"kind"_q)),
+			.place = OptString(o, u"place"_q),
 		});
 	}
 	return result;
@@ -806,6 +977,15 @@ void FillSettings(
 void SetMine(const QJsonObject &res) {
 	G().mine = ParseTabs(res);
 	G().mineLoaded = true;
+}
+
+[[nodiscard]] const MyTab *Mine(uint64 botId, const QString &kind) {
+	for (const auto &tab : G().mine) {
+		if (tab.botId == botId && tab.kind == kind) {
+			return &tab;
+		}
+	}
+	return nullptr;
 }
 
 void LoadMine(not_null<Main::Session*> session, Fn<void()> done) {
@@ -823,18 +1003,23 @@ void LoadMine(not_null<Main::Session*> session, Fn<void()> done) {
 	});
 }
 
+[[nodiscard]] QString DeclinedKey(uint64 botId, const QString &kind) {
+	return u"%1:%2"_q.arg(botId).arg(kind);
+}
+
 void Status(
 		not_null<Main::Session*> session,
 		uint64 botId,
+		const QString &kind,
 		Fn<void(QString)> done) {
 	const auto answer = [=] {
-		for (const auto &tab : G().mine) {
-			if (tab.botId == botId) {
-				done(u"added"_q);
-				return;
-			}
+		if (Mine(botId, kind)) {
+			done(u"added"_q);
+		} else {
+			done(G().declined.contains(DeclinedKey(botId, kind))
+				? u"declined"_q
+				: u"missed"_q);
 		}
-		done(G().declined.contains(botId) ? u"declined"_q : u"missed"_q);
 	};
 	if (G().mineLoaded) {
 		answer();
@@ -843,79 +1028,107 @@ void Status(
 	}
 }
 
-void FireProfile(uint64 owner) {
-	G().updates.fire(u"u%1_"_q.arg(owner));
+void FireProfile(uint64 owner, ProfileView view) {
+	G().updates.fire(ProfilePrefix(owner, view));
 }
 
-// The tabs this person's profile shows me, each with its first page of cards.
-void LoadProfile(not_null<Main::Session*> session, uint64 owner) {
+[[nodiscard]] QString ListQuery(ProfileView view) {
+	switch (view) {
+	case ProfileView::SavedMessages: return u"?saved=1"_q;
+	case ProfileView::Bot: return u"?bot=1"_q;
+	case ProfileView::Profile: break;
+	}
+	return QString();
+}
+
+// The tabs this profile screen shows me, each with its first page of cards. A tab the bot hides from
+// me (live cards: nothing for the two of us) answers 404 and isn't shown.
+void LoadProfile(
+		not_null<Main::Session*> session,
+		uint64 owner,
+		ProfileView view) {
+	const auto prefix = ProfilePrefix(owner, view);
 	Auth::EnsureToken(session, [=](QString token) {
 		if (token.isEmpty()) {
 			return;
 		}
-		Api::Get(u"/v1/users/%1/tabs"_q.arg(owner), token, [=](
+		Api::Get(u"/v1/users/%1/tabs"_q.arg(owner) + ListQuery(view), token, [=](
 				QJsonObject result,
 				int code) {
 			if (code != 200) {
 				return;
 			}
-			const auto tabs = ParseTabs(result);
-			auto bots = std::vector<uint64>();
-			for (const auto &tab : tabs) {
-				bots.push_back(tab.botId);
+			auto tabs = std::vector<Shown>();
+			for (const auto &tab : ParseTabs(result)) {
+				tabs.push_back({
+					tab.botId,
+					tab.place.isEmpty() ? u"profile"_q : tab.place,
+				});
 			}
-			if (bots.empty()) {
-				G().profiles[owner] = {};
-				FireProfile(owner);
+			if (tabs.empty()) {
+				G().profiles[prefix] = {};
+				FireProfile(owner, view);
 				return;
 			}
-			const auto left = std::make_shared<int>(int(bots.size()));
-			for (const auto bot : bots) {
-				Api::Get(u"/v1/users/%1/tabs/%2"_q.arg(owner).arg(bot), token, [=](
-						QJsonObject result,
-						int code) {
-					if (code == 200) {
-						auto state = Parse(result, true);
-						state->ownerId = owner;
-						state->botId = bot;
-						G().states[UserKey(owner, bot)] = std::move(state);
-					} else {
-						G().states.remove(UserKey(owner, bot));
-					}
-					if (--*left == 0) {
-						auto shown = std::vector<uint64>();
-						for (const auto id : bots) {
-							if (G().states.contains(UserKey(owner, id))) {
-								shown.push_back(id);
-							}
+			const auto left = std::make_shared<int>(int(tabs.size()));
+			for (const auto &tab : tabs) {
+				const auto key = UserKey(owner, view, tab.botId, tab.place);
+				Api::Get(
+					u"/v1/users/%1/tabs/%2?place=%3"_q
+						.arg(owner)
+						.arg(tab.botId)
+						.arg(tab.place),
+					token,
+					[=](QJsonObject result, int code) {
+						if (code == 200) {
+							auto state = Parse(result, true);
+							state->ownerId = owner;
+							state->botId = tab.botId;
+							state->place = tab.place;
+							G().states[key] = std::move(state);
+						} else {
+							G().states.remove(key);
 						}
-						G().profiles[owner] = std::move(shown);
-						FireProfile(owner);
-					}
-				});
+						if (--*left == 0) {
+							auto shown = std::vector<Shown>();
+							for (const auto &one : tabs) {
+								if (G().states.contains(
+										UserKey(owner, view, one.botId, one.place))) {
+									shown.push_back(one);
+								}
+							}
+							G().profiles[prefix] = std::move(shown);
+							FireProfile(owner, view);
+						}
+					});
 			}
 		});
 	});
 }
 
-[[nodiscard]] std::shared_ptr<State> Slot(uint64 owner, int index) {
-	const auto i = G().profiles.find(owner);
+[[nodiscard]] std::shared_ptr<State> Slot(
+		uint64 owner,
+		ProfileView view,
+		int index) {
+	const auto i = G().profiles.find(ProfilePrefix(owner, view));
 	if (i == end(G().profiles) || index >= int(i->second.size())) {
 		return nullptr;
 	}
-	return Cached(UserKey(owner, i->second[index]));
+	const auto &tab = i->second[index];
+	return Cached(UserKey(owner, view, tab.botId, tab.place));
 }
 
 [[nodiscard]] rpl::producer<std::shared_ptr<State>> SlotValue(
 		uint64 owner,
+		ProfileView view,
 		int index) {
-	const auto prefix = u"u%1_"_q.arg(owner);
+	const auto prefix = ProfilePrefix(owner, view);
 	return rpl::single(QString()) | rpl::then(
 		G().updates.events() | rpl::filter([=](const QString &key) {
 			return key.startsWith(prefix);
 		})
 	) | rpl::map([=] {
-		return Slot(owner, index);
+		return Slot(owner, view, index);
 	});
 }
 
@@ -932,7 +1145,12 @@ void WithSessionToken(
 	});
 }
 
-void RemoveMine(not_null<Main::Session*> session, uint64 botId) {
+// Takes my tab off; `owner` and `view`: the profile screen to refresh.
+void RemoveMine(
+		not_null<Main::Session*> session,
+		uint64 botId,
+		uint64 owner,
+		ProfileView view) {
 	const auto self = session->userId().bare;
 	WithSessionToken(session, [](QString) {}, [=](QString token) {
 		Api::Delete(u"/v1/profile-tabs/%1"_q.arg(botId), token, [=](
@@ -941,7 +1159,20 @@ void RemoveMine(not_null<Main::Session*> session, uint64 botId) {
 			if (code == 200) {
 				SetMine(result);
 			}
-			LoadProfile(session, self);
+			LoadProfile(session, self, ProfileView::Profile);
+			if (owner != self || view != ProfileView::Profile) {
+				LoadProfile(session, owner, view);
+			}
+		});
+	});
+}
+
+void RemoveSaved(not_null<Main::Session*> session) {
+	const auto self = session->userId().bare;
+	WithSessionToken(session, [](QString) {}, [=](QString token) {
+		Api::Delete(u"/v1/chat-tabs/saved/0"_q, token, [=](QJsonObject, int) {
+			G().states.remove(u"s"_q);
+			LoadProfile(session, self, ProfileView::SavedMessages);
 		});
 	});
 }
@@ -972,56 +1203,73 @@ void ReportProfileTab(
 	});
 }
 
-[[nodiscard]] Source ProfileSource(not_null<UserData*> owner, int index) {
+[[nodiscard]] Source ProfileSource(
+		not_null<UserData*> owner,
+		ProfileView view,
+		int index) {
 	const auto session = &owner->session();
 	const auto ownerId = Bare(owner);
 	return {
-		.state = [=] { return SlotValue(ownerId, index); },
+		.state = [=] { return SlotValue(ownerId, view, index); },
 		.loadMore = [=](std::shared_ptr<State> state) {
 			if (!state) {
 				return;
 			}
 			const auto bot = state->botId;
-			LoadMoreFrom(session, UserKey(ownerId, bot), [=](int offset) {
-				return u"/v1/users/%1/tabs/%2?offset=%3"_q
+			const auto place = state->place;
+			LoadMoreFrom(session, UserKey(ownerId, view, bot, place), [=](int offset) {
+				return u"/v1/users/%1/tabs/%2?place=%3&offset=%4"_q
 					.arg(ownerId)
 					.arg(bot)
+					.arg(place)
 					.arg(offset);
 			}, true);
 		},
 		.fillMenu = [=](
 				not_null<Ui::PopupMenu*> menu,
 				std::shared_ptr<State> state) {
-			if (!owner->isSelf()) {
+			const auto bot = state->botId;
+			if (state->place == u"saved"_q) {
+				// Saved Messages' tab is mine alone: take it off.
+				menu->addAction(
+					Tr(Str::BotTabRemove),
+					[=] { RemoveSaved(session); },
+					&st::menuIconDeleteAttention);
+			} else if (state->place == u"private"_q && Mine(bot, u"private"_q)) {
+				// My private tab, on my profile or on one of the bot's other users'.
+				menu->addAction(
+					Tr(Str::ProfileTabRemove),
+					[=] { RemoveMine(session, bot, ownerId, view); },
+					&st::menuIconDeleteAttention);
+			} else if (state->place == u"profile"_q && owner->isSelf()) {
+				// My own profile: who sees it, or take it off.
+				const auto mine = Mine(bot, u"profile"_q);
+				const auto everyone = !mine || mine->everyone;
+				menu->addAction(
+					Tr(Str::ProfileTabEveryone),
+					[=] { SetEveryone(session, bot, true); },
+					everyone ? &st::mediaPlayerMenuCheck : nullptr);
+				menu->addAction(
+					Tr(Str::ProfileTabOnlyMe),
+					[=] { SetEveryone(session, bot, false); },
+					everyone ? nullptr : &st::mediaPlayerMenuCheck);
+				menu->addAction(
+					Tr(Str::ProfileTabRemove),
+					[=] { RemoveMine(session, bot, ownerId, view); },
+					&st::menuIconDeleteAttention);
+			} else {
 				AddReportActions(menu, [=](QString reason, Done done) {
 					ReportProfileTab(session, state, reason, done);
 				});
-				return;
 			}
-			// My own profile: who sees it, or take it off.
-			auto everyone = true;
-			for (const auto &tab : G().mine) {
-				if (tab.botId == state->botId) {
-					everyone = tab.everyone;
-				}
-			}
-			const auto bot = state->botId;
-			menu->addAction(
-				Tr(Str::ProfileTabEveryone),
-				[=] { SetEveryone(session, bot, true); },
-				everyone ? &st::mediaPlayerMenuCheck : nullptr);
-			menu->addAction(
-				Tr(Str::ProfileTabOnlyMe),
-				[=] { SetEveryone(session, bot, false); },
-				everyone ? nullptr : &st::mediaPlayerMenuCheck);
-			menu->addAction(
-				Tr(Str::ProfileTabRemove),
-				[=] { RemoveMine(session, bot); },
-				&st::menuIconDeleteAttention);
 		},
 		.open = [=](std::shared_ptr<State> state, const Card &card) {
-			// The mini app it opens is told whose profile this is (chat_type "profile").
-			G().openedFrom[state->botId] = { ownerId, crl::now() };
+			// The mini app it opens is told whose profile this is, and where the tab is: chat_type
+			// "profile", "private", "saved" or "bot".
+			RememberOpened(
+				state->botId,
+				owner->id,
+				state->chatType.isEmpty() ? state->place : state->chatType);
 			UrlClickHandler::Open(card.link);
 		},
 	};
@@ -1038,26 +1286,36 @@ void ReportProfileTab(
 	return result;
 }
 
+[[nodiscard]] bool IsPrivate(const QString &kind) {
+	return (kind == u"private"_q);
+}
+
 void AddProfileTab(
 		std::shared_ptr<Ui::Show> show,
 		not_null<UserData*> bot,
+		const QString &kind,
 		uint64 replace,
 		Fn<void(bool shownNow, bool added)> done) {
 	const auto session = &bot->session();
 	const auto self = session->userId().bare;
 	WithSessionToken(session, [=](QString) { done(true, false); }, [=](QString token) {
-		auto body = QJsonObject{ { u"bot_username"_q, bot->username() } };
+		auto body = QJsonObject{
+			{ u"bot_username"_q, bot->username() },
+			{ u"kind"_q, kind },
+		};
 		if (replace) {
 			body.insert(u"replace_bot_id"_q, qint64(replace));
 		}
 		Api::Post(u"/v1/profile-tabs"_q, body, token, [=](QJsonObject result, int code) {
 			if (code == 200) {
 				SetMine(result);
-				G().declined.remove(Bare(bot));
-				LoadProfile(session, self);
+				G().declined.remove(DeclinedKey(Bare(bot), kind));
+				LoadProfile(session, self, ProfileView::Profile);
 				if (show->valid()) {
 					show->showToast(WithBold(
-						Tr(Str::ProfileTabAdded),
+						Tr(IsPrivate(kind)
+							? Str::ProfileTabAddedPrivate
+							: Str::ProfileTabAdded),
 						u"%1"_q,
 						bot->name()));
 				}
@@ -1077,21 +1335,30 @@ void AddProfileTab(
 void AskBox(
 		std::shared_ptr<Ui::Show> show,
 		not_null<UserData*> bot,
+		const QString &kind,
 		Fn<void(bool shownNow, bool added)> done) {
 	const auto answered = std::make_shared<bool>(false);
+	const auto decline = [=] {
+		G().declined.emplace(DeclinedKey(Bare(bot), kind));
+		done(true, false);
+	};
 	show->show(Box([=](not_null<Ui::GenericBox*> box) {
 		Ui::ConfirmBox(box, {
-			.text = WithBold(Tr(Str::ProfileTabRequest), u"%1"_q, bot->name()),
+			.text = WithBold(
+				Tr(IsPrivate(kind)
+					? Str::ProfileTabRequestPrivate
+					: Str::ProfileTabRequest),
+				u"%1"_q,
+				bot->name()),
 			.confirmed = [=](Fn<void()> close) {
 				if (!std::exchange(*answered, true)) {
-					AddProfileTab(show, bot, 0, done);
+					AddProfileTab(show, bot, kind, 0, done);
 				}
 				close();
 			},
 			.cancelled = [=](Fn<void()> close) {
 				if (!std::exchange(*answered, true)) {
-					G().declined.emplace(Bare(bot));
-					done(true, false);
+					decline();
 				}
 				close();
 			},
@@ -1099,26 +1366,38 @@ void AskBox(
 		});
 		box->boxClosing() | rpl::on_next([=] {
 			if (!std::exchange(*answered, true)) {
-				G().declined.emplace(Bare(bot));
-				done(true, false);
+				decline();
 			}
 		}, box->lifetime());
 	}));
 }
 
-// Three already: which one this replaces, or cancel. Choosing is agreeing.
+[[nodiscard]] std::vector<MyTab> MineOf(const QString &kind) {
+	auto result = std::vector<MyTab>();
+	for (const auto &tab : G().mine) {
+		if (tab.kind == kind) {
+			result.push_back(tab);
+		}
+	}
+	return result;
+}
+
+// Three of this kind already: which one this replaces, or cancel. Choosing is agreeing.
 void ChooseBox(
 		std::shared_ptr<Ui::Show> show,
 		not_null<UserData*> bot,
+		const QString &kind,
 		Fn<void(bool shownNow, bool added)> done) {
-	const auto mine = G().mine;
+	const auto mine = MineOf(kind);
 	const auto answered = std::make_shared<bool>(false);
 	show->show(Box([=](not_null<Ui::GenericBox*> box) {
 		box->setTitle(TrValue(Str::ProfileTabFullTitle));
 		box->addRow(object_ptr<Ui::FlatLabel>(
 			box,
 			rpl::single(WithBold(
-				Tr(Str::ProfileTabFullText).arg(kMaxProfileTabs),
+				Tr(IsPrivate(kind)
+					? Str::ProfileTabFullTextPrivate
+					: Str::ProfileTabFullText).arg(kMaxProfileTabs),
 				u"%2"_q,
 				bot->name())),
 			st::boxLabel));
@@ -1139,7 +1418,7 @@ void ChooseBox(
 		box->addButton(TrValue(Str::ProfileTabReplace), [=] {
 			if (!std::exchange(*answered, true)) {
 				const auto index = std::clamp(group->current(), 0, int(mine.size()) - 1);
-				AddProfileTab(show, bot, mine[index].botId, done);
+				AddProfileTab(show, bot, kind, mine[index].botId, done);
 			}
 			box->closeBox();
 		});
@@ -1155,20 +1434,22 @@ void ChooseBox(
 } // namespace
 
 Info::Profile::MediaTabDescriptor MakeTabDescriptor(
-		not_null<ChannelData*> channel) {
-	Load(channel);
+		not_null<PeerData*> peer) {
+	Load(peer);
 	return {
 		.id = u"svipe_bot_tab"_q,
-		.title = TitleValue(channel) | rpl::map([](QString text) {
+		.title = TitleValue(peer) | rpl::map([](QString text) {
 			return TextWithEntities{ text };
 		}),
-		.shown = StateValue(channel) | rpl::map([](std::shared_ptr<State> state) {
-			return state && state->active && !state->cards.empty();
+		.shown = StateValue(peer) | rpl::map([](std::shared_ptr<State> state) {
+			return state
+				&& state->active
+				&& (!state->cards.empty() || ShowsEmpty(state));
 		}),
 		.factory = [=](Info::Profile::MediaTabContext context) {
 			return std::make_unique<TabAdapter>(
 				std::move(context),
-				ChannelSource(channel));
+				ChannelSource(peer));
 		},
 	};
 }
@@ -1176,19 +1457,22 @@ Info::Profile::MediaTabDescriptor MakeTabDescriptor(
 void AddClassicButton(
 		not_null<Ui::VerticalLayout*> parent,
 		not_null<Window::SessionController*> window,
-		not_null<ChannelData*> channel,
+		not_null<PeerData*> peer,
 		Ui::MultiSlideTracker &tracker,
 		const style::icon &icon) {
-	Load(channel);
+	Load(peer);
 	const auto titles = std::make_shared<QString>();
 	const auto wrap = Info::Media::AddCountedButton(
 		parent,
-		StateValue(channel) | rpl::map([=](std::shared_ptr<State> state) {
+		StateValue(peer) | rpl::map([=](std::shared_ptr<State> state) {
 			*titles = (state && state->active) ? state->title : QString();
-			return (state && state->active) ? state->total : 0;
+			return (state && state->active)
+				? std::max(state->total, ShowsEmpty(state) ? 1 : 0)
+				: 0;
 		}),
 		[=](int count) {
-			return *titles + u" · "_q + QString::number(count);
+			const auto state = Cached(peer);
+			return *titles + u" · "_q + QString::number(state ? state->total : count);
 		},
 		tracker);
 	object_ptr<Info::Profile::FloatingIcon>(
@@ -1196,43 +1480,53 @@ void AddClassicButton(
 		icon,
 		st::infoSharedMediaButtonIconPosition);
 	wrap->entity()->addClickHandler([=] {
-		ShowCardsBox(window, ChannelSource(channel));
+		ShowCardsBox(window, ChannelSource(peer));
 	});
 }
 
 void ShowSettingsBox(
 		std::shared_ptr<Ui::Show> show,
-		not_null<ChannelData*> channel) {
+		not_null<PeerData*> peer) {
 	show->showBox(Box([=](not_null<Ui::GenericBox*> box) {
 		box->setTitle(TrValue(Str::BotTab));
 		box->setWidth(st::boxWideWidth);
-		FillSettings(box, show, channel);
-		Load(channel, crl::guard(box, [=] {
-			FillSettings(box, show, channel);
+		FillSettings(box, show, peer);
+		Load(peer, crl::guard(box, [=] {
+			FillSettings(box, show, peer);
 		}));
 		box->addButton(tr::lng_close(), [=] { box->closeBox(); });
+		if (peer->isSelf()) {
+			// Saved Messages' tab shows in its profile screen: refresh it when the box closes.
+			box->boxClosing() | rpl::on_next([=] {
+				LoadProfile(
+					&peer->session(),
+					peer->session().userId().bare,
+					ProfileView::SavedMessages);
+			}, box->lifetime());
+		}
 	}));
 }
 
 Info::Profile::MediaTabDescriptor MakeProfileTabDescriptor(
 		not_null<UserData*> user,
-		int index) {
+		int index,
+		ProfileView view) {
 	if (index == 0) {
-		LoadProfile(&user->session(), Bare(user));
+		LoadProfile(&user->session(), Bare(user), view);
 	}
 	const auto owner = Bare(user);
 	return {
-		.id = u"svipe_profile_tab_%1"_q.arg(index),
-		.title = SlotValue(owner, index) | rpl::map([](std::shared_ptr<State> state) {
+		.id = u"svipe_profile_tab_%1%2"_q.arg(ViewTag(view)).arg(index),
+		.title = SlotValue(owner, view, index) | rpl::map([](std::shared_ptr<State> state) {
 			return TextWithEntities{ state ? state->title : QString() };
 		}),
-		.shown = SlotValue(owner, index) | rpl::map([](std::shared_ptr<State> state) {
+		.shown = SlotValue(owner, view, index) | rpl::map([](std::shared_ptr<State> state) {
 			return state != nullptr;
 		}),
 		.factory = [=](Info::Profile::MediaTabContext context) {
 			return std::make_unique<TabAdapter>(
 				std::move(context),
-				ProfileSource(user, index));
+				ProfileSource(user, view, index));
 		},
 	};
 }
@@ -1242,20 +1536,21 @@ void AddProfileClassicButtons(
 		not_null<Window::SessionController*> window,
 		not_null<UserData*> user,
 		Ui::MultiSlideTracker &tracker,
-		const style::icon &icon) {
+		const style::icon &icon,
+		ProfileView view) {
 	const auto owner = Bare(user);
-	LoadProfile(&user->session(), owner);
-	for (auto index = 0; index != kMaxProfileTabs; ++index) {
+	LoadProfile(&user->session(), owner, view);
+	for (auto index = 0; index != kMaxShownTabs; ++index) {
 		const auto titles = std::make_shared<QString>();
 		const auto wrap = Info::Media::AddCountedButton(
 			parent,
-			SlotValue(owner, index) | rpl::map([=](std::shared_ptr<State> state) {
+			SlotValue(owner, view, index) | rpl::map([=](std::shared_ptr<State> state) {
 				*titles = state ? state->title : QString();
 				// A tab with no cards yet still shows, so its owner can manage it.
 				return state ? std::max(state->total, 1) : 0;
 			}),
 			[=](int) {
-				const auto state = Slot(owner, index);
+				const auto state = Slot(owner, view, index);
 				return state
 					? (*titles + u" · "_q + QString::number(state->total))
 					: *titles;
@@ -1266,7 +1561,7 @@ void AddProfileClassicButtons(
 			icon,
 			st::infoSharedMediaButtonIconPosition);
 		wrap->entity()->addClickHandler([=] {
-			ShowCardsBox(window, ProfileSource(user, index));
+			ShowCardsBox(window, ProfileSource(user, view, index));
 		});
 	}
 }
@@ -1275,33 +1570,36 @@ void RequestProfileTab(
 		std::shared_ptr<Ui::Show> show,
 		not_null<UserData*> bot,
 		bool fromMiniApp,
+		const QString &kind,
 		Fn<void(bool shownNow, bool added)> done) {
 	if (!bot->isBot()) {
 		done(false, false);
 		return;
 	}
 	const auto botId = Bare(bot);
-	Status(&bot->session(), botId, [=](QString status) {
+	const auto which = KindOf(kind);
+	Status(&bot->session(), botId, which, [=](QString status) {
 		if (status == u"added"_q) {
 			done(false, true);
 		} else if ((fromMiniApp && status == u"declined"_q) || !show->valid()) {
 			done(false, false);
-		} else if (int(G().mine.size()) >= kMaxProfileTabs) {
-			ChooseBox(show, bot, done);
+		} else if (int(MineOf(which).size()) >= kMaxProfileTabs) {
+			ChooseBox(show, bot, which, done);
 		} else {
-			AskBox(show, bot, done);
+			AskBox(show, bot, which, done);
 		}
 	});
 }
 
 void RequestProfileTabByUsername(
 		not_null<Window::SessionController*> controller,
-		const QString &username) {
+		const QString &username,
+		const QString &kind) {
 	const auto session = &controller->session();
 	const auto show = controller->uiShow();
 	const auto ask = [=](PeerData *peer) {
 		if (const auto bot = peer ? peer->asUser() : nullptr) {
-			RequestProfileTab(show, bot, false, [](bool, bool) {});
+			RequestProfileTab(show, bot, false, kind, [](bool, bool) {});
 		}
 	};
 	if (const auto peer = session->data().peerByUsername(username)) {
@@ -1320,21 +1618,27 @@ void RequestProfileTabByUsername(
 	})).send();
 }
 
-void ProfileTabStatus(not_null<UserData*> bot, Fn<void(QString)> done) {
-	Status(&bot->session(), Bare(bot), std::move(done));
+void ProfileTabStatus(
+		not_null<UserData*> bot,
+		const QString &kind,
+		Fn<void(QString)> done) {
+	Status(&bot->session(), Bare(bot), KindOf(kind), std::move(done));
 }
 
-UserData *TakeOpenedFromProfile(not_null<UserData*> bot) {
+OpenedFrom TakeOpenedFrom(not_null<UserData*> bot) {
 	const auto i = G().openedFrom.find(Bare(bot));
 	if (i == end(G().openedFrom)) {
-		return nullptr;
+		return {};
 	}
-	const auto [owner, when] = i->second;
+	const auto opened = i->second;
 	G().openedFrom.erase(i);
-	if (crl::now() - when > kOpenedFromTimeout) {
-		return nullptr;
+	if (crl::now() - opened.when > kOpenedFromTimeout) {
+		return {};
 	}
-	return bot->session().data().userLoaded(UserId(owner));
+	return {
+		.peer = bot->session().data().peerLoaded(opened.peer),
+		.chatType = opened.chatType,
+	};
 }
 
 } // namespace Svipe::BotTab

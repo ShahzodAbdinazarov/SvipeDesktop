@@ -1917,13 +1917,14 @@ void WebViewInstance::show(ShowArgs &&args) {
 		return;
 	}
 
-	// Svipe: opened from a card on someone's profile, that person is signed in as chat_type "profile".
+	// Svipe: opened from a bot tab's card, where it was is signed in: the profile's owner as chat_type
+	// "profile", "private", "saved" or "bot", or the chat as "channel", "supergroup" or "group".
 	if (!_svipeSigned) {
-		if (const auto owner = Svipe::BotTab::TakeOpenedFromProfile(_bot)) {
+		if (const auto from = Svipe::BotTab::TakeOpenedFrom(_bot); from.peer) {
 			_svipeSigned = true;
 			Svipe::AttachMenu::SignContext(
 				_bot,
-				owner,
+				not_null(from.peer),
 				args.result.url,
 				QString(),
 				crl::guard(this, [=](QString url) {
@@ -1931,7 +1932,7 @@ void WebViewInstance::show(ShowArgs &&args) {
 					copy.result.url = url;
 					show(std::move(copy));
 				}),
-				u"profile"_q);
+				from.chatType);
 			return;
 		}
 	}
@@ -2942,13 +2943,16 @@ void WebViewInstance::botAttachMenuAdd(Fn<void(bool added)> callback) {
 	});
 }
 
-void WebViewInstance::botProfileTabStatus(Fn<void(QString status)> callback) {
-	Svipe::BotTab::ProfileTabStatus(_bot, std::move(callback));
+void WebViewInstance::botProfileTabStatus(
+		const QString &kind,
+		Fn<void(QString status)> callback) {
+	Svipe::BotTab::ProfileTabStatus(_bot, kind, std::move(callback));
 }
 
 void WebViewInstance::botProfileTabAdd(
+		const QString &kind,
 		Fn<void(bool shownNow, bool added)> callback) {
-	Svipe::BotTab::RequestProfileTab(uiShow(), _bot, true, std::move(callback));
+	Svipe::BotTab::RequestProfileTab(uiShow(), _bot, true, kind, std::move(callback));
 }
 
 // Svipe: answerWebAppQuery for any bot opened from the attachment menu in a

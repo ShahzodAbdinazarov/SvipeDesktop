@@ -2439,9 +2439,11 @@ bool Panel::createWebview(const Webview::ThemeParams &params) {
 				{ u"status"_q, _delegate->botAttachMenuStatus() },
 			});
 		} else if (command == "web_app_add_to_profile") {
-			requestProfileTabAdd();
+			requestProfileTabAdd(arguments[u"place"_q].toString());
 		} else if (command == "web_app_check_profile_tab") {
-			_delegate->botProfileTabStatus(crl::guard(this, [=](QString status) {
+			_delegate->botProfileTabStatus(
+					arguments[u"place"_q].toString(),
+					crl::guard(this, [=](QString status) {
 				postEvent("profile_tab_checked", QJsonObject{
 					{ u"status"_q, status },
 				});
@@ -3167,7 +3169,7 @@ void Panel::requestAttachMenuAdd() {
 	}));
 }
 
-void Panel::requestProfileTabAdd() {
+void Panel::requestProfileTabAdd(const QString &kind) {
 	if (_inBlockingRequest) {
 		postEvent("profile_tab_failed", QJsonObject{
 			{ u"error"_q, u"UNSUPPORTED"_q },
@@ -3175,7 +3177,7 @@ void Panel::requestProfileTabAdd() {
 		return;
 	}
 	_inBlockingRequest = true;
-	_delegate->botProfileTabAdd(crl::guard(this, [=](bool shown, bool added) {
+	_delegate->botProfileTabAdd(kind, crl::guard(this, [=](bool shown, bool added) {
 		_inBlockingRequest = false;
 		if (added) {
 			postEvent("profile_tab_added");

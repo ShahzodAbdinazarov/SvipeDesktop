@@ -1660,14 +1660,18 @@ void Controller::fillManageSection() {
 			[=] { editReactions(); },
 			{ &st::menuIconGroupReactions });
 	}
-	// Svipe: the channel's bot tab (svipe.uz/bots/profile-tabs).
-	if (const auto channel = _peer->asBroadcast()
-		; channel && channel->canEditInformation()) {
+	// Svipe: the channel's or group's bot tab (svipe.uz/bots/profile-tabs#places); its admins'.
+	if (const auto channel = _peer->asChannel()
+		; (channel
+			&& !channel->isMonoforum()
+			&& channel->canEditInformation())
+		|| (_peer->asChat() && _peer->asChat()->canEditInformation())) {
+		const auto peer = _peer;
 		AddButtonWithCount(
 			_controls.buttonsLayout,
 			Svipe::TrValue(Svipe::Str::BotTab),
 			rpl::single(QString()),
-			[=] { Svipe::BotTab::ShowSettingsBox(_navigation->uiShow(), channel); },
+			[=] { Svipe::BotTab::ShowSettingsBox(_navigation->uiShow(), peer); },
 			{ &st::menuIconBot });
 	}
 	if (canEditWelcomeMessages) {
