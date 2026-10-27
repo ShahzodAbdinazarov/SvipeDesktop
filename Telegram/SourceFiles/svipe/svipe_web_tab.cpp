@@ -157,6 +157,7 @@ void View::open(not_null<UserData*> bot) {
 		if (!weak) {
 			return;
 		}
+		LOG(("Svipe WebTab: page for bot %1 opened.").arg(_args.botId));
 		const auto url = result.match([](const MTPDwebViewResultUrl &data) {
 			return qs(data.vurl());
 		});
@@ -167,6 +168,9 @@ void View::open(not_null<UserData*> bot) {
 			if (_private->webview) {
 				_private->webview->navigate(signedUrl);
 			}
+			LOG(("Svipe WebTab: navigate, webview: %1, signed: %2"
+				).arg(Logs::b(_private->webview != nullptr)
+				).arg(Logs::b(signedUrl.contains(u"tgWebAppSvipeData"_q))));
 			place();
 		});
 		if (!peer) {
@@ -181,6 +185,8 @@ void View::open(not_null<UserData*> bot) {
 			QString(),
 			navigate,
 			_args.chatType);
+	}).fail([=](const MTP::Error &error) {
+		LOG(("Svipe WebTab: requestWebView failed: %1").arg(error.type()));
 	}).send();
 }
 
@@ -205,6 +211,7 @@ void View::createHost() {
 		});
 	const auto raw = _private->webview.get();
 	if (!raw->widget()) {
+		LOG(("Svipe WebTab: no web view widget."));
 		_private->webview = nullptr;
 		return;
 	}
@@ -276,28 +283,22 @@ void View::createHost() {
 }
 
 bool View::covered(QRect global) const {
-	// A box or another layer drawn by Qt over the tab: the native page would show through it.
+	// A box or another layer drawn by Qt over the profile: the native page would show through it.
+	// What belongs to the profile itself (its scroll bar, shadows, the pinned tabs) doesn't count.
 	const auto window = this->window();
-	const auto host = _private->host.get();
-	const auto points = {
-		global.center(),
-		global.topLeft() + QPoint(1, 1),
-		global.topRight() + QPoint(-1, 1),
-		global.bottomLeft() + QPoint(1, -1),
-		global.bottomRight() + QPoint(-1, -1),
-	};
-	for (const auto &point : points) {
-		const auto top = window->childAt(window->mapFromGlobal(point));
-		if (!top || top == this || top == host) {
-			continue;
-		} else if (host && host->isAncestorOf(top)) {
-			continue;
-		} else if (isAncestorOf(top)) {
-			continue;
+	auto section = parentWidget();
+	for (auto parent = parentWidget(); parent; parent = parent->parentWidget()) {
+		if (dynamic_cast<QAbstractScrollArea*>(parent)) {
+			section = parent->parentWidget() ? parent->parentWidget() : parent;
+			break;
 		}
-		return true;
 	}
-	return false;
+	const auto host = _private->host.get();
+	const auto top = window->childAt(window->mapFromGlobal(global.center()));
+	if (!top || top == host || (host && host->isAncestorOf(top))) {
+		return false;
+	}
+	return !(section && (section == top || section->isAncestorOf(top)));
 }
 
 void View::place() {
