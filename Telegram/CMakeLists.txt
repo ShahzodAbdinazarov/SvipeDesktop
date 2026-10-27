@@ -2026,6 +2026,9 @@ PRIVATE
     svipe/svipe_attach_menu.h
     svipe/svipe_bot_tab.cpp
     svipe/svipe_bot_tab.h
+    svipe/svipe_web_tab.cpp
+    svipe/svipe_web_tab.h
+    svipe/svipe_web_tab_native.h
     svipe/svipe_bot_contacts.cpp
     svipe/svipe_bot_contacts.h
     svipe/svipe_bot_mute.cpp
@@ -2421,6 +2424,7 @@ if (APPLE)
     nice_target_sources(Telegram ${src_loc}
     PRIVATE
         tray_accounts_menu.cpp
+        svipe/svipe_web_tab_native_mac.mm
         media/view/media_view_metal_texture.mm
         media/streaming/media_streaming_native_frame_mac.mm
     )
@@ -2428,6 +2432,7 @@ else()
     nice_target_sources(Telegram ${src_loc}
     PRIVATE
         tray_accounts_menu_dummy.cpp
+        svipe/svipe_web_tab_native_dummy.cpp
     )
 endif()
 

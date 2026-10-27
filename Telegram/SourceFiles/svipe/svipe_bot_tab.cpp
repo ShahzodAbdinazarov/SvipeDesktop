@@ -15,6 +15,7 @@ Svipe Desktop — Svipe additions to Telegram Desktop.
 #include "svipe/svipe_api.h"
 #include "svipe/svipe_auth.h"
 #include "svipe/svipe_strings.h"
+#include "svipe/svipe_web_tab.h"
 #include "ui/basic_click_handlers.h"
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
@@ -72,6 +73,8 @@ struct State {
 	// What the bot shows this viewer when it has no cards for them (live cards).
 	QString emptyText;
 	QString emptyImage;
+	// Mode "web": the bot's page in the tab instead of cards.
+	QString webUrl;
 	QString title;
 	bool list = false;
 	bool isAttacher = false;
@@ -169,6 +172,9 @@ Global &G() {
 	const auto empty = res.value(u"empty"_q).toObject();
 	state->emptyText = OptString(empty, u"text"_q);
 	state->emptyImage = OptString(empty, u"image"_q);
+	if (res.value(u"mode"_q).toString() == u"web"_q) {
+		state->webUrl = OptString(res, u"web_url"_q);
+	}
 	state->title = OptString(res, u"title"_q);
 	if (state->title.isEmpty()) {
 		state->title = state->botUsername;
@@ -199,8 +205,13 @@ Global &G() {
 	return (i != end(G().states)) ? i->second : nullptr;
 }
 
+[[nodiscard]] bool IsWeb(const std::shared_ptr<State> &state) {
+	return state && !state->webUrl.isEmpty() && state->botId;
+}
+
 [[nodiscard]] bool ShowsEmpty(const std::shared_ptr<State> &state) {
 	return state
+		&& !IsWeb(state)
 		&& state->cards.empty()
 		&& (!state->emptyText.isEmpty() || !state->emptyImage.isEmpty());
 }
@@ -777,6 +788,68 @@ private:
 	object_ptr<Cards> _cards;
 
 };
+
+// A tab in mode "web": the bot's page as tall as the tab (svipe_web_tab.h).
+class WebAdapter final : public Info::Profile::MediaTabContent {
+public:
+	WebAdapter(
+		Info::Profile::MediaTabContext context,
+		Source source,
+		WebTab::Args args)
+	: _source(source)
+	, _view(
+		context.parent,
+		&context.peer->session(),
+		std::move(args)) {
+	}
+
+	not_null<Ui::RpWidget*> widget() override {
+		return _view.data();
+	}
+	Info::Profile::TabTopBarBindings topBarBindings() override {
+		return {
+			.title = _source.state() | rpl::map([](std::shared_ptr<State> state) {
+				return TextWithEntities{ (state && state->active) ? state->title : QString() };
+			}),
+		};
+	}
+	void resizeToWidth(int newWidth) override {
+		_view->resizeToWidth(newWidth);
+	}
+	void setVisibleRegion(int top, int bottom) override {
+		_view->setVisibleRegion(top, bottom);
+	}
+	void setTopOverlay(int height) override {
+		_view->setTopOverlay(height);
+	}
+
+private:
+	const Source _source;
+	object_ptr<WebTab::View> _view;
+
+};
+
+// The tab's content for this state: the bot's page in mode "web", its cards otherwise.
+[[nodiscard]] std::unique_ptr<Info::Profile::MediaTabContent> MakeContent(
+		Info::Profile::MediaTabContext context,
+		Source source,
+		const std::shared_ptr<State> &state,
+		PeerId where,
+		const QString &chatType) {
+	if (IsWeb(state)) {
+		return std::make_unique<WebAdapter>(
+			std::move(context),
+			std::move(source),
+			WebTab::Args{
+				.botId = state->botId,
+				.botUsername = state->botUsername,
+				.url = state->webUrl,
+				.peer = where,
+				.chatType = chatType,
+			});
+	}
+	return std::make_unique<TabAdapter>(std::move(context), std::move(source));
+}
 
 void ShowCardsBox(
 		not_null<Window::SessionController*> window,
@@ -1444,12 +1517,15 @@ Info::Profile::MediaTabDescriptor MakeTabDescriptor(
 		.shown = StateValue(peer) | rpl::map([](std::shared_ptr<State> state) {
 			return state
 				&& state->active
-				&& (!state->cards.empty() || ShowsEmpty(state));
+				&& (!state->cards.empty() || ShowsEmpty(state) || IsWeb(state));
 		}),
 		.factory = [=](Info::Profile::MediaTabContext context) {
-			return std::make_unique<TabAdapter>(
+			return MakeContent(
 				std::move(context),
-				ChannelSource(peer));
+				ChannelSource(peer),
+				Cached(peer),
+				peer->id,
+				ChatType(peer));
 		},
 	};
 }
@@ -1524,9 +1600,15 @@ Info::Profile::MediaTabDescriptor MakeProfileTabDescriptor(
 			return state != nullptr;
 		}),
 		.factory = [=](Info::Profile::MediaTabContext context) {
-			return std::make_unique<TabAdapter>(
+			const auto state = Slot(owner, view, index);
+			return MakeContent(
 				std::move(context),
-				ProfileSource(user, view, index));
+				ProfileSource(user, view, index),
+				state,
+				user->id,
+				state
+					? (state->chatType.isEmpty() ? state->place : state->chatType)
+					: QString());
 		},
 	};
 }
