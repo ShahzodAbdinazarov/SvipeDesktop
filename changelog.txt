@@ -1,3 +1,7 @@
+7.3.10 (28.10.26)
+
+- Svipe Desktop 1.0.22: bots' tabs now appear wherever they do on Android: in groups, in Saved Messages, on a bot's own profile, and private tabs a person adds for themselves. A tab in web mode shows the bot's own page right inside the profile and scrolls with it. Voice and video messages can be transcribed by Svipe's own speech to text (→S); hold the button to switch to Telegram's.
+
 7.3.9 (21.10.26)
 
 - Svipe Desktop 1.0.21: svipe.uz links to what only Svipe bots can do open right in the app: adding a bot to the attachment menu or the side menu, connecting a business bot, and opening a bot in a chat. On macOS, notifications now use the system's modern notifications, so Mark as read in a notification keeps the app in the background.
