@@ -1,3 +1,11 @@
+7.4.1 (08.11.26)
+
+- Svipe Desktop 1.0.23: based on Telegram Desktop 7.4.1. Bots can show HTML widgets. Search apps, channels, posts and media in the search tabs. Sent text messages fly into their bubbles. Reply with quotes to rich messages, and a new QR code design for public usernames.
+- Mini apps ask for camera and microphone access on macOS.
+- Fix menu translation on macOS.
+- Fix code blocks losing the indentation of their first line.
+- Fix many crashes and other bugs.
+
 7.3.10 (28.10.26)
 
 - Svipe Desktop 1.0.22: bots' tabs now appear wherever they do on Android: in groups, in Saved Messages, on a bot's own profile, and private tabs a person adds for themselves. A tab in web mode shows the bot's own page right inside the profile and scrolls with it. Voice and video messages can be transcribed by Svipe's own speech to text (→S); hold the button to switch to Telegram's.
