@@ -33,10 +33,13 @@ jobs:
         shell: cmd
 
     steps:
+      # The whole tree lives on the runner's second disk: with Qt 6 (tdesktop 7.4) the libraries
+      # alone ran C: out of space (LNK1180 linking Qt6Widgets.lib).
       - name: Prepare directories.
         run: |
-          mkdir %userprofile%\TBuild\Libraries
-          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          wmic logicaldisk get caption,freespace,size
+          mkdir D:\TBuild\Libraries
+          mklink /d %GITHUB_WORKSPACE%\TBuild D:\TBuild
           echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
           echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries\win64>>%GITHUB_ENV%
 
