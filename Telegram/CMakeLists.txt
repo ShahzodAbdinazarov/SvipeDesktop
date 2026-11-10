@@ -2762,6 +2762,9 @@ if (WIN32)
     #     $<IF:${release},"Appending compatibility manifest.","Finalizing build.">
     # )
 
+    # Svipe: our static Qt 6 Network keeps QDnsLookup, which calls DnsQuery_W & co.
+    target_link_libraries(Telegram PRIVATE Dnsapi)
+
     if (QT_VERSION LESS 6 OR DESKTOP_APP_WIN7_BASELINE)
         target_link_libraries(Telegram PRIVATE desktop-app::win_directx_helper)
     endif()
