@@ -1,3 +1,7 @@
+7.4.2 (11.11.26)
+
+- Svipe Desktop 1.0.24: the group stays highlighted in the chat list while one of its topics is open.
+
 7.4.1 (08.11.26)
 
 - Svipe Desktop 1.0.23: based on Telegram Desktop 7.4.1. Bots can show HTML widgets. Search apps, channels, posts and media in the search tabs. Sent text messages fly into their bubbles. Reply with quotes to rich messages, and a new QR code design for public usernames.
