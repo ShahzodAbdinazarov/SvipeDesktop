@@ -1,3 +1,7 @@
+7.4.3 (11.11.26)
+
+- Svipe Desktop 1.0.25: based on Telegram Desktop 7.4.2. Videos up to 1920x1920 play right in the chat, the first message of a new topic no longer goes missing, and switching chat folders no longer shows two lists at once. Security and crash fixes.
+
 7.4.2 (11.11.26)
 
 - Svipe Desktop 1.0.24: the group stays highlighted in the chat list while one of its topics is open.
