@@ -1886,8 +1886,9 @@ bool InnerWidget::isRowActive(
 		return true;
 	} else if (const auto topic = entry.key.topic()) {
 		if (const auto history = key.history()) {
-			return (history->peer == topic->peer())
-				&& HistoryView::SubsectionTabs::UsedFor(history);
+			// Svipe: the forum's row stays highlighted while one of its
+			// topics is open, also when the topics aren't shown as tabs.
+			return (history->peer == topic->peer());
 		}
 		return false;
 	} else if (const auto sublist = entry.key.sublist()) {
