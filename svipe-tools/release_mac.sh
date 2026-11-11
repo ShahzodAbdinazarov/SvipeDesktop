@@ -78,10 +78,30 @@ if [ "$(nm "$BIN" 2>/dev/null | wc -l)" -gt 200000 ]; then
   strip "$BIN"
 fi
 
-# No Developer ID yet, so the app is ad-hoc signed: a clean, consistent signature lets macOS offer
-# "Open Anyway"; a broken one makes it say the app is damaged.
-codesign --force --deep --sign - --preserve-metadata=entitlements,flags "$APP"
+# Signed and notarized as tdesktop's Telegram/build/build.sh does it: Developer ID, hardened runtime,
+# secure timestamp, Telegram.entitlements (mic, camera, location). Notarization goes through the
+# App Store Connect API key (~/.appstoreconnect/config.json), so no Apple ID password is involved.
+IDENTITY="Developer ID Application: SHAKHZOD ABDINAZAROV (K3LJRJ3899)"
+ASC="$HOME/.appstoreconnect/config.json"
+asc() { /usr/bin/python3 -c "import json,sys;print(json.load(open('$ASC'))[sys.argv[1]])" "$1"; }
+NOTARY=(--key "$(asc key_path)" --key-id "$(asc key_id)" --issuer "$(asc issuer_id)")
+notarize() {  # $1 = file to submit; fails the release unless Apple says Accepted
+  local out id
+  out=$(xcrun notarytool submit "$1" "${NOTARY[@]}" --wait --output-format json) || true
+  id=$(echo "$out" | /usr/bin/python3 -c "import json,sys;print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
+  echo "$out" | grep -q '"status" *: *"Accepted"' && return 0
+  [ -n "$id" ] && xcrun notarytool log "$id" "${NOTARY[@]}" >&2 || echo "$out" >&2
+  die "notarization of $(basename "$1") failed"
+}
+security find-identity -v -p codesigning | grep -qF "$IDENTITY" || die "no '$IDENTITY' in the keychain"
+codesign --force --deep --timestamp --options runtime --sign "$IDENTITY" \
+  --entitlements "$ROOT/Telegram/Telegram/Telegram.entitlements" "$APP"
 codesign --verify --deep --strict "$APP"
+ZIP="$ROOT/out/Release/Svipe-notarize.zip"
+rm -f "$ZIP"; ditto -c -k --keepParent "$APP" "$ZIP"
+notarize "$ZIP"; rm -f "$ZIP"
+xcrun stapler staple "$APP" >/dev/null
+spctl --assess --type execute "$APP" || die "Gatekeeper rejects the signed app"
 
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
@@ -89,6 +109,10 @@ cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
 hdiutil create -quiet -volname "Svipe" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+codesign --force --timestamp --sign "$IDENTITY" "$DMG"
+notarize "$DMG"
+xcrun stapler staple "$DMG" >/dev/null
+spctl --assess --type open --context context:primary-signature "$DMG" || die "Gatekeeper rejects the dmg"
 # The update package, from the very bundle inside the dmg.
 APP_VERSION=$(grep '^AppVersion ' "$ROOT/Telegram/build/version" | awk '{print $2}')
 UPDATE="td-update-mac-arm-$APP_VERSION"
