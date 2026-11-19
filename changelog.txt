@@ -1,3 +1,7 @@
+7.4.4 (19.11.26)
+
+- Svipe Desktop 1.0.26: opening a message from a notification on macOS puts the cursor in the chat, and the chat list stays in view.
+
 7.4.3 (11.11.26)
 
 - Svipe Desktop 1.0.25: based on Telegram Desktop 7.4.2. Videos up to 1920x1920 play right in the chat, the first message of a new topic no longer goes missing, and switching chat folders no longer shows two lists at once. Security and crash fixes.
