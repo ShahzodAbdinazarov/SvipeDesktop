@@ -194,6 +194,8 @@ public:
 	Image *newBackgroundThumb();
 
 	void setInnerFocus();
+	// Svipe: a chat opened from a notification gets the focus, not the chats search.
+	void focusOpenedChat();
 
 	bool contentOverlapped(const QRect &globalRect);
 

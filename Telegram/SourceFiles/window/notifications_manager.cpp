@@ -35,6 +35,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
+#include "mainwidget.h"
+#include "base/call_delayed.h"
 #include "core/application.h"
 #include "core/version.h"
 #include "mainwindow.h"
@@ -1552,6 +1554,21 @@ Window::SessionController *Manager::openNotificationMessage(
 				SectionShow::Way::Forward,
 				itemId);
 		}
+		// Svipe: macOS activates the window around this click, and with nothing focused yet
+		// Qt hands the focus to the first field it finds, the chats search. That opens the
+		// search suggestions over the chat list. Give the focus to the opened chat instead,
+		// now and once more after the activation has settled.
+		const auto weak = base::make_weak(window);
+		const auto focusChat = [=] {
+			if (const auto strong = weak.get()) {
+				if (const auto content = strong->content()) {
+					content->focusOpenedChat();
+				}
+			}
+		};
+		focusChat();
+		crl::on_main(window, focusChat);
+		base::call_delayed(300, window, focusChat);
 	}
 	return window;
 }

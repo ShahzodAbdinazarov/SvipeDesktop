@@ -113,6 +113,8 @@ public:
 		const Window::SectionShow &params);
 	void setInnerFocus(bool unfocusSearch = false);
 	[[nodiscard]] bool searchHasFocus() const;
+	// Svipe: an empty search that only got the focus by itself lets go of it.
+	bool dropIdleSearchFocus();
 
 	[[nodiscard]] Data::Forum *openedForum() const;
 

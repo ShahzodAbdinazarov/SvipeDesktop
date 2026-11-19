@@ -2768,6 +2768,18 @@ bool Widget::searchHasFocus() const {
 	return _searchHasFocus;
 }
 
+bool Widget::dropIdleSearchFocus() {
+	if (_childList
+		|| !_searchHasFocus
+		|| _searchSuggestionsLocked
+		|| _searchState.inChat
+		|| !_search->getLastText().isEmpty()) {
+		return false;
+	}
+	setInnerFocus(true);
+	return true;
+}
+
 Data::Forum *Widget::openedForum() const {
 	return _openedForum;
 }

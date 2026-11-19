@@ -1327,6 +1327,12 @@ Image *MainWidget::newBackgroundThumb() {
 		: nullptr;
 }
 
+void MainWidget::focusOpenedChat() {
+	if (_dialogs && _dialogs->dropIdleSearchFocus()) {
+		setInnerFocus();
+	}
+}
+
 void MainWidget::setInnerFocus() {
 	const auto setTo = [&](auto &&widget) {
 		if (widget->isHidden()) {
