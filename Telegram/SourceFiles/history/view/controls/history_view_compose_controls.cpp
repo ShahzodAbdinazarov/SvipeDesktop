@@ -6,6 +6,8 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/controls/history_view_compose_controls.h"
+#include "svipe/svipe_direct.h"
+#include "ui/item_text_options.h"
 
 #include "history/view/controls/history_view_bot_menu_button.h"
 
@@ -115,7 +117,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "support/support_common.h"
 #include "support/support_helper.h"
 #include "ui/item_text_options.h"
-#include "ui/text/text_options.h"
+#include "ui/item_text_options.h"
 #include "ui/text/text_utilities.h"
 #include "ui/ui_utility.h"
 #include "ui/widgets/fields/input_field.h"
@@ -4154,6 +4156,10 @@ void ComposeControls::setupSendMenu(
 		Fn<void(Api::SendOptions)> send) {
 	using namespace SendMenu;
 	const auto sendAction = [=](Action action, Details details) {
+		if (action.type == ActionType::SvipeDirect) {
+			sendViaSvipe();
+			return;
+		}
 		if (action.type == ActionType::ChangePrice) {
 			_chosenStarsCount = details.price.value_or(0);
 			updateSendButtonType();
@@ -4960,6 +4966,21 @@ SendMenu::Details ComposeControls::sendButtonMenuDetails() const {
 	auto result = sendMenuDetails();
 	if (!hasSendableContent() && !_previewShown) {
 		result.effectAllowed = false;
+	}
+	// Svipe: "Send via Svipe" for plain text in a private chat (no edit or forward yet).
+	const auto svipePeer = _history ? _history->peer.get() : nullptr;
+	const auto svipeCan = svipePeer && Svipe::Direct::CanSendTo(svipePeer);
+	const auto svipeText = _field->isVisible() && HasSendText(_field);
+	result.svipeDirect = svipeCan
+		&& svipeText
+		&& !isEditingMessage()
+		&& !readyToForward();
+	if (svipePeer && svipePeer->isUser()) {
+		LOG(("Svipe Direct: compose menu, can %1, text %2, edit %3, fwd %4"
+			).arg(Logs::b(svipeCan)
+			).arg(Logs::b(svipeText)
+			).arg(Logs::b(isEditingMessage())
+			).arg(Logs::b(readyToForward())));
 	}
 	return result;
 }
@@ -6679,4 +6700,30 @@ rpl::producer<bool> SendDisabledBySlowmode(not_null<PeerData*> peer) {
 			_1 && _2);
 }
 
+void ComposeControls::sendViaSvipe() {
+	if (!_history || !Svipe::Direct::CanSendTo(_history->peer)) {
+		return;
+	}
+	const auto textWithTags = _field->getTextWithAppliedMarkdown();
+	auto text = TextWithEntities{
+		textWithTags.text,
+		TextUtilities::ConvertTextTagsToEntities(textWithTags.tags),
+	};
+	TextUtilities::PrepareForSending(
+		text,
+		Ui::ItemTextOptions(_history, session().user()).flags);
+	TextUtilities::Trim(text);
+	if (text.text.isEmpty()) {
+		return;
+	}
+	const auto reply = replyingToMessage();
+	const auto replyItem = reply.messageId
+		? session().data().message(reply.messageId)
+		: nullptr;
+	Svipe::Direct::Send(_history, std::move(text), replyItem);
+	setText({});
+	cancelReplyMessage();
+}
+
 } // namespace HistoryView
+

@@ -1,3 +1,7 @@
+7.4.6 (27.11.26)
+
+- Svipe Desktop 1.0.28: "Send via Svipe" also works in a chat opened in its own window.
+
 7.4.5 (27.11.26)
 
 - Svipe Desktop 1.0.27: Send via Svipe — in a private chat, right-click the Send button to send a message through Svipe only; Telegram never sees it. Messages sent this way show a small Svipe mark next to the time.

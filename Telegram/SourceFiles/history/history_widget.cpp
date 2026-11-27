@@ -6286,6 +6286,15 @@ SendMenu::Details HistoryWidget::sendButtonDefaultDetails() const {
 		&& !readyToForward()
 		&& Svipe::Direct::CanSendTo(_peer)
 		&& !_field->getTextWithTags().text.trimmed().isEmpty();
+	if (_peer && _peer->isUser()) {
+		LOG(("Svipe Direct: history menu, can %1, text %2, edit %3, fwd %4, listen %5, rich %6"
+			).arg(Logs::b(Svipe::Direct::CanSendTo(_peer))
+			).arg(Logs::b(!_field->getTextWithTags().text.trimmed().isEmpty())
+			).arg(Logs::b(_editMsgId != 0)
+			).arg(Logs::b(readyToForward())
+			).arg(Logs::b(_voiceRecordBar->isListenState())
+			).arg(Logs::b(shownRichMessage() != nullptr)));
+	}
 	return result;
 }
 

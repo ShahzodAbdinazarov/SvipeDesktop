@@ -265,6 +265,7 @@ public:
 	[[nodiscard]] bool isEditingMessage() const;
 	[[nodiscard]] rpl::producer<FullMsgId> editMsgIdValue() const;
 	[[nodiscard]] bool readyToForward() const;
+	void sendViaSvipe(); // Svipe: the send menu's "Send via Svipe"
 	[[nodiscard]] const HistoryItemsList &forwardItems() const;
 	[[nodiscard]] FullReplyTo replyingToMessage() const;
 	[[nodiscard]] FullReplyTo draftReplyingToMessage() const;
