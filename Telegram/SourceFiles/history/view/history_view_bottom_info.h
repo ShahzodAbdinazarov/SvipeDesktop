@@ -32,7 +32,7 @@ struct TextState;
 class BottomInfo final : public Object {
 public:
 	struct Data {
-		enum class Flag : uint16 {
+		enum class Flag : uint32 {
 			Edited         = 0x001,
 			OutLayout      = 0x002,
 			Sending        = 0x004,
@@ -49,6 +49,7 @@ public:
 			Updated        = 0x2000,
 			FullDate       = 0x4000,
 			SvipeDeleted   = 0x8000, // Svipe: a deleted message shown in chat
+			SvipeDirect    = 0x10000, // Svipe: sent/received via Svipe only
 
 			//Unread, // We don't want to pass and update it in Date for now.
 		};

@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "svipe/svipe_direct.h"
 #include "menu/menu_send.h"
 
 #include "menu/menu_checked_action.h"
@@ -598,6 +599,8 @@ Fn<void(Action, Details)> DefaultCallback(
 		if (action.type == ActionType::Send) {
 			send(action.options);
 			return;
+		} else if (action.type == ActionType::SvipeDirect) {
+			return; // Svipe: only the chat's own send button handles it
 		}
 		auto box = HistoryView::PrepareScheduleBox(
 			guard,
@@ -765,6 +768,13 @@ FillMenuResult FillSendMenu(
 				{ Api::DefaultSendWhenOnlineOptions() },
 				details); },
 			&icons.menuWhenOnline);
+	}
+	if (sending && details.svipeDirect) {
+		// Svipe: the text goes through Svipe's server only; Telegram never sees it.
+		menu->addAction(
+			Svipe::Direct::SendLabel(),
+			[=] { action({ .type = ActionType::SvipeDirect }, details); },
+			&st::menuIconForward);
 	}
 
 	if ((type != Type::Disabled)

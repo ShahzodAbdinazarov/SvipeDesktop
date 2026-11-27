@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "svipe/svipe_message_sync.h"
 #include "svipe/svipe_deleted_in_chat.h"
+#include "svipe/svipe_direct.h"
 
 #include "api/api_compose_with_ai.h"
 #include "api/api_editing.h"
@@ -464,6 +465,8 @@ HistoryWidget::HistoryWidget(
 	setupSendMenu(_send.get(), [=](SendMenu::Action action, SendMenu::Details) {
 		if (action.type == SendMenu::ActionType::Send) {
 			send(action.options);
+		} else if (action.type == SendMenu::ActionType::SvipeDirect) {
+			sendViaSvipe();
 		} else {
 			sendScheduled(action.options);
 		}
@@ -3789,6 +3792,7 @@ void HistoryWidget::setHistory(History *history) {
 		registerDraftSource();
 		Svipe::MessageSync::OnChatOpened(history);
 		Svipe::DeletedInChat::Restore(history);
+		Svipe::Direct::OnChatOpened(history);
 		if (_history) {
 			setupPreview();
 			trackThreadFieldVisibility();
@@ -5913,7 +5917,15 @@ void HistoryWidget::sendVoice(const VoiceToSend &data) {
 void HistoryWidget::send(Api::SendOptions options) {
 	if (!_history) {
 		return;
-	} else if (_editMsgId) {
+	}
+	if (const auto reply = replyTo().messageId) {
+		// Svipe: Telegram never had a Svipe-only message; send without the reply, as Android does.
+		const auto item = session().data().message(reply);
+		if (item && Svipe::Direct::IsDirect(item)) {
+			cancelReply();
+		}
+	}
+	if (_editMsgId) {
 		saveEditMessage({});
 		return;
 	} else if (const auto page = shownRichMessage()) {
@@ -6266,7 +6278,40 @@ SendMenu::Details HistoryWidget::sendButtonDefaultDetails() const {
 	if (!hasSendableContent() && !_previewDrawPreview) {
 		result.effectAllowed = false;
 	}
+	// Svipe: "Send via Svipe" for plain text in a private chat (no media, forward or edit yet).
+	result.svipeDirect = _peer
+		&& !_editMsgId
+		&& !_voiceRecordBar->isListenState()
+		&& !shownRichMessage()
+		&& !readyToForward()
+		&& Svipe::Direct::CanSendTo(_peer)
+		&& !_field->getTextWithTags().text.trimmed().isEmpty();
 	return result;
+}
+
+void HistoryWidget::sendViaSvipe() {
+	if (!_history || !Svipe::Direct::CanSendTo(_peer)) {
+		return;
+	}
+	const auto textWithTags = _field->getTextWithAppliedMarkdown();
+	auto text = TextWithEntities{
+		textWithTags.text,
+		TextUtilities::ConvertTextTagsToEntities(textWithTags.tags),
+	};
+	TextUtilities::PrepareForSending(
+		text,
+		Ui::ItemTextOptions(_history, session().user()).flags);
+	TextUtilities::Trim(text);
+	if (text.text.isEmpty()) {
+		return;
+	}
+	const auto reply = replyTo();
+	const auto replyItem = reply.messageId
+		? session().data().message(reply.messageId)
+		: nullptr;
+	Svipe::Direct::Send(_history, std::move(text), replyItem);
+	clearFieldText();
+	cancelReply();
 }
 
 void HistoryWidget::unblockUser() {

@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "apiwrap.h"
 #include "svipe/svipe_strings.h"
+#include "svipe/svipe_direct.h"
 
 #include "api/api_authorizations.h"
 #include "api/api_attached_stickers.h"
@@ -3935,6 +3936,13 @@ void ApiWrap::forwardMessages(
 		const auto item = *i;
 		if (item->isSavedMusicItem()) {
 			SendExistingDocument(MessageToSend(action), item->media()->document());
+			i = draft.items.erase(i);
+		} else if (Svipe::Direct::IsDirect(item)) {
+			// Svipe: a message that came via Svipe is forwarded via Svipe too — never to Telegram.
+			Svipe::Direct::Forward(
+				action.history,
+				item,
+				draft.options != Data::ForwardOptions::PreserveInfo);
 			i = draft.items.erase(i);
 		} else {
 			++i;

@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "svipe/svipe_bot_mute.h"
 #include "svipe/svipe_message_sync.h"
 #include "svipe/svipe_deleted_in_chat.h"
+#include "svipe/svipe_direct.h"
 #include "svipe/svipe_settings_sync.h"
 #include "svipe/svipe_reels.h"
 #include "svipe/svipe_reels_section.h"
@@ -359,6 +360,7 @@ Session::Session(
 		Svipe::BotMute::Watch(this);
 		Svipe::MessageSync::Start(this);
 		Svipe::DeletedInChat::Start(this);
+		Svipe::Direct::Start(this);
 	});
 }
 

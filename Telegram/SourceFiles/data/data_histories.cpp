@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_histories.h"
 
 #include "svipe/svipe_message_archive.h"
+#include "svipe/svipe_direct.h"
 
 #include "api/api_text_entities.h"
 #include "data/business/data_shortcut_messages.h"
@@ -1017,6 +1018,11 @@ void Histories::deleteMessages(const MessageIdsList &ids, bool revoke) {
 				continue;
 			} else if (item->isEphemeral()) {
 				_owner->session().ephemeralMessages().deleteMessage(item);
+				continue;
+			} else if (Svipe::Direct::IsDirect(item)) {
+				// Svipe: never on Telegram — withdrawn on Svipe's server (my own) and removed here.
+				Svipe::Direct::OnDelete(item);
+				remove.push_back(item);
 				continue;
 			}
 			remove.push_back(item);

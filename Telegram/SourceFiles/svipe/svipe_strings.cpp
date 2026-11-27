@@ -572,6 +572,18 @@ Translations Lookup(Str key) {
 		"Deleted",
 		"O'chirilgan",
 		"Удалено" };
+	case Str::DirectSend: return {
+		"Send via Svipe",
+		"Svipe orqali yuborish",
+		"Отправить через Svipe" };
+	case Str::DirectMenuHint: return {
+		"Sent via Svipe only — Telegram never saw this message.",
+		"Bu xabar faqat Svipe orqali yuborilgan — Telegram uni ko'rmagan.",
+		"Отправлено только через Svipe — Telegram это сообщение не видел." };
+	case Str::DirectForwardOnlyPrivate: return {
+		"Messages sent via Svipe can only be forwarded to private chats for now.",
+		"Svipe orqali kelgan xabarlarni hozircha faqat shaxsiy chatlarga uzatish mumkin.",
+		"Сообщения через Svipe пока можно пересылать только в личные чаты." };
 	case Str::ShowInChat: return {
 		"Show in chat",
 		"Chatda ko'rsatish",

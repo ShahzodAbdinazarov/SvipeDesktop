@@ -49,6 +49,7 @@ enum class ActionType : uchar {
 	EditCover,
 	RemoveCover,
 	ChangePrice,
+	SvipeDirect, // Svipe: "Send via Svipe"
 };
 struct Action {
 	using Type = ActionType;

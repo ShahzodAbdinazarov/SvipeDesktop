@@ -2109,6 +2109,8 @@ PRIVATE
     svipe/svipe_profile_images.h
     svipe/svipe_deleted_in_chat.cpp
     svipe/svipe_deleted_in_chat.h
+    svipe/svipe_direct.cpp
+    svipe/svipe_direct.h
     svipe/svipe_message_sync.cpp
     svipe/svipe_message_sync.h
     svipe/svipe_channel_info.cpp

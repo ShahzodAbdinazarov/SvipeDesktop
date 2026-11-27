@@ -481,6 +481,7 @@ private:
 	void sendScheduled(Api::SendOptions initialOptions);
 	[[nodiscard]] SendMenu::Details sendButtonMenuDetails() const;
 	[[nodiscard]] SendMenu::Details sendButtonDefaultDetails() const;
+	void sendViaSvipe(); // Svipe: the send menu's "Send via Svipe"
 	void handlePendingHistoryUpdate();
 	void fullInfoUpdated();
 	void toggleTabbedSelectorMode();

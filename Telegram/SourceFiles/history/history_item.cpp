@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/history_item.h"
+#include "svipe/svipe_direct.h"
 
 #include "api/api_premium.h"
 #include "api/api_sensitive_content.h"
@@ -3442,7 +3443,7 @@ bool HistoryItem::allowsReschedule() const {
 
 bool HistoryItem::allowsForward() const {
 	return !isService()
-		&& (isRegular() || isEphemeral())
+		&& (isRegular() || isEphemeral() || Svipe::Direct::IsDirect(this))
 		&& !forbidsForward()
 		&& history()->peer->allowsForwarding()
 		&& (!_media || _media->allowsForward());
